@@ -1,0 +1,141 @@
+{
+  "engine": "evidently",
+  "drift_score": 0.3333333333333333,
+  "threshold": 0.3,
+  "drift_detected": true,
+  "drifted_features": [
+    "Contract",
+    "InternetService",
+    "MonthlyCharges",
+    "Tenure",
+    "TotalCharges",
+    "charges_per_tenure",
+    "num_services",
+    "tenure_years"
+  ],
+  "per_column": {
+    "label": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "prediction": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "MonthlyCharges": {
+      "drift_detected": true,
+      "test": "unknown",
+      "score": null
+    },
+    "Tenure": {
+      "drift_detected": true,
+      "test": "unknown",
+      "score": null
+    },
+    "TotalCharges": {
+      "drift_detected": true,
+      "test": "unknown",
+      "score": null
+    },
+    "charges_per_tenure": {
+      "drift_detected": true,
+      "test": "unknown",
+      "score": null
+    },
+    "num_services": {
+      "drift_detected": true,
+      "test": "unknown",
+      "score": null
+    },
+    "tenure_years": {
+      "drift_detected": true,
+      "test": "unknown",
+      "score": null
+    },
+    "Gender": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "SeniorCitizen": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "Partner": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "Dependents": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "PhoneService": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "MultipleLines": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "InternetService": {
+      "drift_detected": true,
+      "test": "unknown",
+      "score": null
+    },
+    "OnlineSecurity": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "OnlineBackup": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "DeviceProtection": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "TechSupport": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "StreamingTV": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "StreamingMovies": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "Contract": {
+      "drift_detected": true,
+      "test": "unknown",
+      "score": null
+    },
+    "PaperlessBilling": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    },
+    "PaymentMethod": {
+      "drift_detected": false,
+      "test": "unknown",
+      "score": null
+    }
+  },
+  "reference": "/home/gadour/Desktop/new project/other/mlops-project-documentation/.worktrees/backend-agent/data/monitoring/reference.csv",
+  "current": "/home/gadour/Desktop/new project/other/mlops-project-documentation/.worktrees/backend-agent/data/monitoring/current.csv",
+  "generated_at": null
+}

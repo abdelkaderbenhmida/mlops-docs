@@ -1,0 +1,49 @@
+# Alerting rules for the ML platform (monitoring/prometheus/alert_rules.yml).
+# Referenced from prometheus.yml via rule_files. Alertmanager integration is
+# optional; these rules define the detection conditions from the spec §14.5.
+
+groups:
+  - name: mlops-api
+    rules:
+      - alert: HighAPILatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path, method)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency on {{ $labels.path }}"
+          description: "p95 latency over 500ms for {{ $labels.method }} {{ $labels.path }} for 5 minutes."
+
+      - alert: HighAPIErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (path)
+            / clamp_min(sum(rate(http_requests_total[5m])) by (path), 1e-6) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High API error rate on {{ $labels.path }}"
+          description: "More than 5% of responses are 5xx on {{ $labels.path }}."
+
+      - alert: APIInstanceDown
+        expr: up{job="mlops-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API instance {{ $labels.instance }} down"
+          description: "The mlops-api scrape target has been unreachable for 2 minutes."
+
+      - alert: ModelPredictionShift
+        expr: |
+          histogram_quantile(0.95, sum(rate(model_prediction_value_bucket[1h])) by (le)) < 0.05
+            and histogram_quantile(0.50, sum(rate(model_prediction_value_bucket[1h])) by (le)) > 0.8
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prediction distribution shifted"
+          description: "The production prediction distribution deviates from the training-time distribution."

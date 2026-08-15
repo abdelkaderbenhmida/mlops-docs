@@ -1,0 +1,25 @@
+# Prometheus configuration: scrapes the FastAPI inference service metrics
+# endpoint. The API exposes instrumented HTTP metrics plus model prediction
+# distribution and model version gauges (src/api/metrics.py).
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "mlops-api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          service: mlops-api
+
+  - job_name: "mlops-api-local"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+        labels:
+          service: mlops-api-local
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml

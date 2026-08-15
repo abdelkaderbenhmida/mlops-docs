@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlops-platform"
+version = "1.0.0"
+description = "End-to-end MLOps platform: Airflow + DVC/MinIO + MLflow + FastAPI + Kubernetes + Prometheus/Grafana + Evidently"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = ["notebooks", ".worktrees", "data", "models", "mlruns"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "BLE"]
+ignore = ["B008"]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+extend-exclude = "notebooks|data|models|mlruns"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+markers = ["integration: end-to-end pipeline tests"]

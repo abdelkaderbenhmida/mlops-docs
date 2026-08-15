@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+# Multi-stage build: dependencies installed in the builder stage, only the
+# runtime essentials are copied to the final slim image. Runs as non-root.
+
+FROM python:3.11-slim AS builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+COPY requirements.txt .
+RUN pip install --prefix=/install -r requirements.txt
+
+
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/install/bin:${PATH}" \
+    MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000} \
+    MLFLOW_MODEL_NAME=${MLFLOW_MODEL_NAME:-churn_model}
+
+COPY --from=builder /install /install
+
+WORKDIR /app
+
+COPY src ./src
+COPY models ./models
+COPY data/features ./data/features
+COPY great_expectations ./great_expectations
+
+RUN useradd --create-home --uid 1000 appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"
+
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

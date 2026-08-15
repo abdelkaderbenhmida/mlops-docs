@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+# Training job image: full Python deps + source code. Data comes from the
+# DVC remote / volume mount at runtime, never baked into the image.
+
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000} \
+    MLFLOW_MODEL_NAME=${MLFLOW_MODEL_NAME:-churn_model}
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY src ./src
+COPY scripts ./scripts
+COPY dvc.yaml ./
+COPY dvc.lock ./
+COPY .dvc ./.dvc
+COPY great_expectations ./great_expectations
+COPY models ./models
+
+RUN useradd --create-home --uid 1000 trainer \
+    && chown -R trainer:trainer /app
+
+USER trainer
+
+CMD ["python", "-m", "src.models.train"]
