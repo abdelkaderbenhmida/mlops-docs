@@ -1,0 +1,140 @@
+{
+  "numeric_features": [
+    "Tenure",
+    "MonthlyCharges",
+    "TotalCharges"
+  ],
+  "categorical_features": [
+    "Gender",
+    "SeniorCitizen",
+    "Partner",
+    "Dependents",
+    "PhoneService",
+    "MultipleLines",
+    "InternetService",
+    "OnlineSecurity",
+    "OnlineBackup",
+    "DeviceProtection",
+    "TechSupport",
+    "StreamingTV",
+    "StreamingMovies",
+    "Contract",
+    "PaperlessBilling",
+    "PaymentMethod"
+  ],
+  "category_mappings": {
+    "Gender": {
+      "Female": 0,
+      "Male": 1
+    },
+    "SeniorCitizen": {
+      "0": 0,
+      "1": 1
+    },
+    "Partner": {
+      "No": 0,
+      "Yes": 1
+    },
+    "Dependents": {
+      "No": 0,
+      "Yes": 1
+    },
+    "PhoneService": {
+      "No": 0,
+      "Yes": 1
+    },
+    "MultipleLines": {
+      "No": 0,
+      "No phone service": 1,
+      "Yes": 2
+    },
+    "InternetService": {
+      "DSL": 0,
+      "Fiber optic": 1,
+      "No": 2
+    },
+    "OnlineSecurity": {
+      "No": 0,
+      "No internet service": 1,
+      "Yes": 2
+    },
+    "OnlineBackup": {
+      "No": 0,
+      "No internet service": 1,
+      "Yes": 2
+    },
+    "DeviceProtection": {
+      "No": 0,
+      "No internet service": 1,
+      "Yes": 2
+    },
+    "TechSupport": {
+      "No": 0,
+      "No internet service": 1,
+      "Yes": 2
+    },
+    "StreamingTV": {
+      "No": 0,
+      "No internet service": 1,
+      "Yes": 2
+    },
+    "StreamingMovies": {
+      "No": 0,
+      "No internet service": 1,
+      "Yes": 2
+    },
+    "Contract": {
+      "Month-to-month": 0,
+      "One year": 1,
+      "Two year": 2
+    },
+    "PaperlessBilling": {
+      "No": 0,
+      "Yes": 1
+    },
+    "PaymentMethod": {
+      "Bank transfer (automatic)": 0,
+      "Credit card (automatic)": 1,
+      "Electronic check": 2,
+      "Mailed check": 3
+    }
+  },
+  "numeric_stats": {
+    "Tenure": {
+      "mean": 36.59428571428571,
+      "std": 20.87232539385439
+    },
+    "MonthlyCharges": {
+      "mean": 68.16176142857142,
+      "std": 28.751493781271822
+    },
+    "TotalCharges": {
+      "mean": 2500.80425,
+      "std": 1877.5490796834451
+    }
+  },
+  "feature_order": [
+    "Tenure",
+    "MonthlyCharges",
+    "TotalCharges",
+    "charges_per_tenure",
+    "tenure_years",
+    "num_services",
+    "Gender",
+    "SeniorCitizen",
+    "Partner",
+    "Dependents",
+    "PhoneService",
+    "MultipleLines",
+    "InternetService",
+    "OnlineSecurity",
+    "OnlineBackup",
+    "DeviceProtection",
+    "TechSupport",
+    "StreamingTV",
+    "StreamingMovies",
+    "Contract",
+    "PaperlessBilling",
+    "PaymentMethod"
+  ]
+}

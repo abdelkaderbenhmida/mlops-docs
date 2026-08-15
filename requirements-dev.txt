@@ -1,0 +1,10 @@
+# Development and CI tooling (not installed in production images).
+-r requirements.txt
+
+pytest>=8.0,<9
+pytest-cov>=4.1,<6
+ruff>=0.4,<1
+black>=24.0,<25
+bandit>=1.7,<2
+pre-commit>=3.5,<4
+httpx>=0.26,<1

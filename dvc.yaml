@@ -1,0 +1,30 @@
+stages:
+  ingest:
+    cmd: python src/data/ingestion.py
+    outs:
+      - data/raw/dataset.csv
+
+  preprocess:
+    cmd: python src/data/preprocessing.py
+    deps:
+      - data/raw/dataset.csv
+    outs:
+      - data/processed/dataset.csv
+
+  build_features:
+    cmd: python src/features/build_features.py
+    deps:
+      - data/processed/dataset.csv
+    outs:
+      - data/features/features.parquet
+      - data/features/features_config.json
+
+  train:
+    cmd: python src/models/train.py
+    deps:
+      - data/features/features.parquet
+      - data/features/features_config.json
+    outs:
+      - models/model.pkl
+    metrics:
+      - metrics.json
