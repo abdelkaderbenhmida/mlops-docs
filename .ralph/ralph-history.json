@@ -1,0 +1,29 @@
+{
+  "iterations": [
+    {
+      "iteration": 1,
+      "startedAt": "2026-08-15T18:07:37.574Z",
+      "endedAt": "2026-08-15T18:09:21.810Z",
+      "durationMs": 104096,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/"
+      ],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
+      ]
+    }
+  ],
+  "totalDurationMs": 104096,
+  "struggleIndicators": {
+    "repeatedErrors": {
+      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 1
+    },
+    "noProgressIterations": 0,
+    "shortIterations": 0
+  }
+}
