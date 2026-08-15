@@ -342,12 +342,29 @@
       "errors": [
         "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
       ]
+    },
+    {
+      "iteration": 22,
+      "startedAt": "2026-08-15T18:32:44.102Z",
+      "endedAt": "2026-08-15T18:35:18.015Z",
+      "durationMs": 153789,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        "tests/unit/test_api.py"
+      ],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
+      ]
     }
   ],
-  "totalDurationMs": 1479405,
+  "totalDurationMs": 1633194,
   "struggleIndicators": {
     "repeatedErrors": {
-      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 19,
+      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 20,
       "\"\\u001b[91m\\u001b[1mError: \\u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 2,
       "62:- **Fail fast** : les tests bloquent le pipeline avant tout déploiement": 1,
       "except (ValueError, TypeError):": 1,
@@ -373,7 +390,7 @@
       "+        \"print(f\\\"warning: registry transition failed: {exc}\\\")\",": 1,
       "ImportError: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.": 1
     },
-    "noProgressIterations": 3,
+    "noProgressIterations": 0,
     "shortIterations": 0
   }
 }
