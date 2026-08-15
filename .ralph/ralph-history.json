@@ -31,14 +31,48 @@
       "errors": [
         "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
       ]
+    },
+    {
+      "iteration": 3,
+      "startedAt": "2026-08-15T18:09:00.781Z",
+      "endedAt": "2026-08-15T18:09:28.893Z",
+      "durationMs": 27979,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "except (ValueError, TypeError):",
+        "except Exception:  # noqa: BLE001",
+        "raise ValidationError(f\"Data validation failed: {summary['failed']} expectation(s) not met\")",
+        "print(f\"validation error: {exc}\", file=sys.stderr)",
+        "print(f\"warning: registry transition failed: {exc}\")",
+        "except Exception:  # nosec B110 - fallback to next source",
+        "except Exception:  # nosec B110 - fallback to local pickle",
+        "print(f\"promotion failed: {exc}\", file=sys.stderr)",
+        "except Exception:  # noqa: BLE001  # nosec B110 - html report is best effort",
+        "except requests.RequestException:"
+      ]
     }
   ],
-  "totalDurationMs": 80506,
+  "totalDurationMs": 108485,
   "struggleIndicators": {
     "repeatedErrors": {
-      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 2
+      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 2,
+      "except (ValueError, TypeError):": 1,
+      "except Exception:  # noqa: BLE001": 1,
+      "raise ValidationError(f\"Data validation failed: {summary['failed']} expectation(s) not met\")": 1,
+      "print(f\"validation error: {exc}\", file=sys.stderr)": 1,
+      "print(f\"warning: registry transition failed: {exc}\")": 1,
+      "except Exception:  # nosec B110 - fallback to next source": 1,
+      "except Exception:  # nosec B110 - fallback to local pickle": 1,
+      "print(f\"promotion failed: {exc}\", file=sys.stderr)": 1,
+      "except Exception:  # noqa: BLE001  # nosec B110 - html report is best effort": 1,
+      "except requests.RequestException:": 1
     },
-    "noProgressIterations": 1,
-    "shortIterations": 0
+    "noProgressIterations": 2,
+    "shortIterations": 1
   }
 }
