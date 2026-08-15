@@ -173,12 +173,28 @@
         "+        \"print(f\\\"promotion failed: {exc}\\\", file=sys.stderr)\",",
         "+        \"print(f\\\"warning: registry transition failed: {exc}\\\")\","
       ]
+    },
+    {
+      "iteration": 11,
+      "startedAt": "2026-08-15T18:15:38.668Z",
+      "endedAt": "2026-08-15T18:16:20.588Z",
+      "durationMs": 41771,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "ImportError: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.",
+        "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
+      ]
     }
   ],
-  "totalDurationMs": 468143,
+  "totalDurationMs": 509914,
   "struggleIndicators": {
     "repeatedErrors": {
-      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 8,
+      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 9,
       "\"\\u001b[91m\\u001b[1mError: \\u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 2,
       "62:- **Fail fast** : les tests bloquent le pipeline avant tout déploiement": 1,
       "except (ValueError, TypeError):": 1,
@@ -201,9 +217,10 @@
       "+        \"except Exception:  # nosec B110 - fallback to next source\",": 1,
       "+        \"except Exception:  # nosec B110 - fallback to local pickle\",": 1,
       "+        \"print(f\\\"promotion failed: {exc}\\\", file=sys.stderr)\",": 1,
-      "+        \"print(f\\\"warning: registry transition failed: {exc}\\\")\",": 1
+      "+        \"print(f\\\"warning: registry transition failed: {exc}\\\")\",": 1,
+      "ImportError: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.": 1
     },
-    "noProgressIterations": 9,
+    "noProgressIterations": 10,
     "shortIterations": 0
   }
 }
