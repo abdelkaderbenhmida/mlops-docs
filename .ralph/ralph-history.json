@@ -80,17 +80,32 @@
       "errors": [
         "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
       ]
+    },
+    {
+      "iteration": 6,
+      "startedAt": "2026-08-15T18:11:59.254Z",
+      "endedAt": "2026-08-15T18:12:23.387Z",
+      "durationMs": 24004,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
+      ]
     }
   ],
-  "totalDurationMs": 255172,
+  "totalDurationMs": 279176,
   "struggleIndicators": {
     "repeatedErrors": {
-      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 5,
+      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 6,
       "\"\\u001b[91m\\u001b[1mError: \\u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 2,
       "62:- **Fail fast** : les tests bloquent le pipeline avant tout déploiement": 1,
       "except (ValueError, TypeError):": 1
     },
-    "noProgressIterations": 4,
-    "shortIterations": 0
+    "noProgressIterations": 5,
+    "shortIterations": 1
   }
 }
