@@ -125,17 +125,51 @@
       "errors": [
         "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
       ]
+    },
+    {
+      "iteration": 9,
+      "startedAt": "2026-08-15T18:13:26.209Z",
+      "endedAt": "2026-08-15T18:14:55.939Z",
+      "durationMs": 89584,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "logger.error(\"model loading failed: %s\", exc)",
+        "except Exception:  # noqa: BLE001",
+        "raise HTTPException(status_code=500, detail=f\"prediction failed: {exc}\") from exc",
+        "except Exception:  # noqa: BLE001  # nosec B110 - fallback to registry/local",
+        "except Exception:  # noqa: BLE001  # nosec B110 - fallback to local pickle",
+        "except Exception:  # nosec B110 - fallback to next source",
+        "except Exception:  # nosec B110 - fallback to local pickle",
+        "print(f\"promotion failed: {exc}\", file=sys.stderr)",
+        "print(f\"warning: registry transition failed: {exc}\")",
+        "except Exception:  # noqa: BLE001  # nosec B110 - html report is best effort"
+      ]
     }
   ],
-  "totalDurationMs": 338268,
+  "totalDurationMs": 427852,
   "struggleIndicators": {
     "repeatedErrors": {
       "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 8,
       "\"\\u001b[91m\\u001b[1mError: \\u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 2,
       "62:- **Fail fast** : les tests bloquent le pipeline avant tout déploiement": 1,
-      "except (ValueError, TypeError):": 1
+      "except (ValueError, TypeError):": 1,
+      "logger.error(\"model loading failed: %s\", exc)": 1,
+      "except Exception:  # noqa: BLE001": 1,
+      "raise HTTPException(status_code=500, detail=f\"prediction failed: {exc}\") from exc": 1,
+      "except Exception:  # noqa: BLE001  # nosec B110 - fallback to registry/local": 1,
+      "except Exception:  # noqa: BLE001  # nosec B110 - fallback to local pickle": 1,
+      "except Exception:  # nosec B110 - fallback to next source": 1,
+      "except Exception:  # nosec B110 - fallback to local pickle": 1,
+      "print(f\"promotion failed: {exc}\", file=sys.stderr)": 1,
+      "print(f\"warning: registry transition failed: {exc}\")": 1,
+      "except Exception:  # noqa: BLE001  # nosec B110 - html report is best effort": 1
     },
-    "noProgressIterations": 7,
-    "shortIterations": 3
+    "noProgressIterations": 8,
+    "shortIterations": 0
   }
 }
