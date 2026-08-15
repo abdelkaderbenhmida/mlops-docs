@@ -149,9 +149,33 @@
         "print(f\"warning: registry transition failed: {exc}\")",
         "except Exception:  # noqa: BLE001  # nosec B110 - html report is best effort"
       ]
+    },
+    {
+      "iteration": 10,
+      "startedAt": "2026-08-15T18:14:57.080Z",
+      "endedAt": "2026-08-15T18:15:37.504Z",
+      "durationMs": 40291,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "ModuleNotFoundError: No module named 'evidently'",
+        "+        \"logger.error(\\\"model loading failed: %s\\\", exc)\",",
+        "+        \"except Exception:  # noqa: BLE001\",",
+        "+        \"raise HTTPException(status_code=500, detail=f\\\"prediction failed: {exc}\\\") from exc\",",
+        "+        \"except Exception:  # noqa: BLE001  # nosec B110 - fallback to registry/local\",",
+        "+        \"except Exception:  # noqa: BLE001  # nosec B110 - fallback to local pickle\",",
+        "+        \"except Exception:  # nosec B110 - fallback to next source\",",
+        "+        \"except Exception:  # nosec B110 - fallback to local pickle\",",
+        "+        \"print(f\\\"promotion failed: {exc}\\\", file=sys.stderr)\",",
+        "+        \"print(f\\\"warning: registry transition failed: {exc}\\\")\","
+      ]
     }
   ],
-  "totalDurationMs": 427852,
+  "totalDurationMs": 468143,
   "struggleIndicators": {
     "repeatedErrors": {
       "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 8,
@@ -167,9 +191,19 @@
       "except Exception:  # nosec B110 - fallback to local pickle": 1,
       "print(f\"promotion failed: {exc}\", file=sys.stderr)": 1,
       "print(f\"warning: registry transition failed: {exc}\")": 1,
-      "except Exception:  # noqa: BLE001  # nosec B110 - html report is best effort": 1
+      "except Exception:  # noqa: BLE001  # nosec B110 - html report is best effort": 1,
+      "ModuleNotFoundError: No module named 'evidently'": 1,
+      "+        \"logger.error(\\\"model loading failed: %s\\\", exc)\",": 1,
+      "+        \"except Exception:  # noqa: BLE001\",": 1,
+      "+        \"raise HTTPException(status_code=500, detail=f\\\"prediction failed: {exc}\\\") from exc\",": 1,
+      "+        \"except Exception:  # noqa: BLE001  # nosec B110 - fallback to registry/local\",": 1,
+      "+        \"except Exception:  # noqa: BLE001  # nosec B110 - fallback to local pickle\",": 1,
+      "+        \"except Exception:  # nosec B110 - fallback to next source\",": 1,
+      "+        \"except Exception:  # nosec B110 - fallback to local pickle\",": 1,
+      "+        \"print(f\\\"promotion failed: {exc}\\\", file=sys.stderr)\",": 1,
+      "+        \"print(f\\\"warning: registry transition failed: {exc}\\\")\",": 1
     },
-    "noProgressIterations": 8,
+    "noProgressIterations": 9,
     "shortIterations": 0
   }
 }
