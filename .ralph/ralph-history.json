@@ -528,14 +528,30 @@
       "errors": [
         "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly."
       ]
+    },
+    {
+      "iteration": 34,
+      "startedAt": "2026-08-15T19:03:27.933Z",
+      "endedAt": "2026-08-15T19:04:40.056Z",
+      "durationMs": 71975,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0m{\"message\":\"[401]: Model north-mini-code-free is not supported [oc/north-mini-code-free (401)]\",\"type\":\"authentication_error\",\"code\":\"invalid_api_key\"}"
+      ]
     }
   ],
-  "totalDurationMs": 3307908,
+  "totalDurationMs": 3379883,
   "struggleIndicators": {
     "repeatedErrors": {
-      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 7
+      "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 7,
+      "\u001b[91m\u001b[1mError: \u001b[0m{\"message\":\"[401]: Model north-mini-code-free is not supported [oc/north-mini-co": 1
     },
-    "noProgressIterations": 7,
+    "noProgressIterations": 8,
     "shortIterations": 0
   }
 }
