@@ -738,16 +738,31 @@
       "errors": [
         "\u001b[91m\u001b[1mError: \u001b[0mNo target in combo auto/coding supports tool calling; request carried 10 tools"
       ]
+    },
+    {
+      "iteration": 48,
+      "startedAt": "2026-08-15T19:05:34.393Z",
+      "endedAt": "2026-08-15T19:05:36.650Z",
+      "durationMs": 2105,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mNo target in combo auto/coding supports tool calling; request carried 10 tools"
+      ]
     }
   ],
-  "totalDurationMs": 3416062,
+  "totalDurationMs": 3418167,
   "struggleIndicators": {
     "repeatedErrors": {
       "\u001b[91m\u001b[1mError: \u001b[0mStructurally heavy chat request capacity is busy; retry shortly.": 7,
       "\u001b[91m\u001b[1mError: \u001b[0m{\"message\":\"[401]: Model north-mini-code-free is not supported [oc/north-mini-co": 1,
-      "\u001b[91m\u001b[1mError: \u001b[0mNo target in combo auto/coding supports tool calling; request carried 10 tools": 13
+      "\u001b[91m\u001b[1mError: \u001b[0mNo target in combo auto/coding supports tool calling; request carried 10 tools": 14
     },
-    "noProgressIterations": 21,
-    "shortIterations": 13
+    "noProgressIterations": 22,
+    "shortIterations": 14
   }
 }
