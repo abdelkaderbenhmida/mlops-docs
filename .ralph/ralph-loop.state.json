@@ -1,0 +1,13 @@
+{
+  "active": true,
+  "iteration": 1,
+  "minIterations": 1,
+  "maxIterations": 60,
+  "completionPromise": "BUILD_COMPLETE",
+  "tasksMode": false,
+  "taskPromise": "READY_FOR_NEXT_TASK",
+  "prompt": "# Task: Write French documentation for MLOps platform repo (mlops-project-documentation)\n\nYou are working in a git worktree for the repo \"mlops-project-documentation\" (French end-to-end MLOps platform: Airflow + DVC/MinIO + MLflow + FastAPI + Docker + GitHub Actions + Kubernetes + Prometheus/Grafana + Evidently).\n\nThe codebase is built in src/, airflow/dags/, docker/, k8s/, monitoring/, .github/workflows/, with dvc.yaml and Makefile. Your job: write accurate FRENCH documentation. Read the real files (Makefile, docker-compose.yml, dvc.yaml, CI workflows, k8s manifests, src/**/*.py) to get paths/commands right — do NOT invent endpoints or flags that don't exist.\n\nOn each iteration: inspect what docs exist and continue writing/improving until all deliverables below are done.\n\n## Deliverables\n1. `README.md` (repo root) — French, complete: presentation, architecture diagram (mermaid or ascii), stack table, structure du dépôt, démarrage rapide (commands verified against Makefile/docker-compose/dvc.yaml), CI/CD explanation, déploiement Kubernetes, monitoring, troubleshooting.\n2. `docs/architecture.md` — layered architecture with data flow (ingestion -> stockage versionné DVC/MinIO -> feature engineering -> entraînement -> tracking MLflow -> registry -> CI/CD -> API FastAPI -> monitoring -> réentraînement).\n3. `docs/deployment.md` — guide de déploiement: stack locale docker-compose (MinIO, Postgres, MLflow, Airflow, API, Prometheus, Grafana), config remote DVC, déploiement Kubernetes (base + overlays staging/production), GitHub Actions.\n4. `docs/ml-pipeline.md` — pipeline ML: validate -> preprocess -> build_features -> train -> evaluate -> promote, with file references.\n5. `docs/api.md` — référence API: /predict, /health, /metrics — request/response examples, codes d'erreur (verify against actual FastAPI code).\n6. `docs/monitoring.md` — targets Prometheus, alert rules, dashboards Grafana (api-performance, model-drift), monitoring de drift Evidently, alerting.\n\n## Rules\n- Do NOT modify any production code, Dockerfiles, workflows, or configs. Docs only.\n- Professional French, markdown, accurate to the real repo.\n- Commit progress with `git add -A && git commit -m \"...\"` on branch agent/docs-agent.\n\n## Completion\nWhen README.md + all 5 docs/ files exist, accurate, and committed on branch agent/docs-agent, output exactly:\n<promise>BUILD_COMPLETE</promise>\nDo not output that tag before everything is genuinely done.\n",
+  "startedAt": "2026-08-15T18:07:37.448Z",
+  "model": "",
+  "agent": "opencode"
+}
