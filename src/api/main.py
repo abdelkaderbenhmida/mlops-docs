@@ -13,6 +13,7 @@ import json
 import logging
 from pathlib import Path
 
+import numpy as np
 from fastapi import FastAPI, HTTPException
 
 from src.api import metrics
@@ -74,7 +75,7 @@ def _predict_one(request: ChurnPredictionRequest) -> PredictionResponse:
     bundle = loader.get_bundle()
     df = request.to_dataframe()
     try:
-        probabilities = bundle.predict_proba(df)[:, 1]
+        probabilities = np.asarray(bundle.predict_proba(df))[:, 1]
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"prediction failed: {exc}") from exc
     probability = float(probabilities[0])

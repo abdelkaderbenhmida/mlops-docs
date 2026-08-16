@@ -1,141 +1,47 @@
 {
-  "engine": "evidently",
-  "drift_score": 0.3333333333333333,
-  "threshold": 0.3,
-  "drift_detected": true,
-  "drifted_features": [
-    "Contract",
-    "InternetService",
-    "MonthlyCharges",
-    "Tenure",
-    "TotalCharges",
-    "charges_per_tenure",
-    "num_services",
-    "tenure_years"
-  ],
+  "engine": "scipy-fallback",
+  "drift_score": 0.0,
+  "threshold": 0.5,
+  "drift_detected": false,
+  "drifted_features": [],
   "per_column": {
-    "label": {
+    "Tenure": {
       "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "prediction": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
+      "test": "ks_2samp",
+      "score": 0.0
     },
     "MonthlyCharges": {
-      "drift_detected": true,
-      "test": "unknown",
-      "score": null
-    },
-    "Tenure": {
-      "drift_detected": true,
-      "test": "unknown",
-      "score": null
+      "drift_detected": false,
+      "test": "ks_2samp",
+      "score": 0.0
     },
     "TotalCharges": {
-      "drift_detected": true,
-      "test": "unknown",
-      "score": null
+      "drift_detected": false,
+      "test": "ks_2samp",
+      "score": 0.0
     },
     "charges_per_tenure": {
-      "drift_detected": true,
-      "test": "unknown",
-      "score": null
-    },
-    "num_services": {
-      "drift_detected": true,
-      "test": "unknown",
-      "score": null
+      "drift_detected": false,
+      "test": "ks_2samp",
+      "score": 0.0
     },
     "tenure_years": {
-      "drift_detected": true,
-      "test": "unknown",
-      "score": null
-    },
-    "Gender": {
       "drift_detected": false,
-      "test": "unknown",
-      "score": null
+      "test": "ks_2samp",
+      "score": 0.0
+    },
+    "num_services": {
+      "drift_detected": false,
+      "test": "ks_2samp",
+      "score": 0.0
     },
     "SeniorCitizen": {
       "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "Partner": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "Dependents": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "PhoneService": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "MultipleLines": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "InternetService": {
-      "drift_detected": true,
-      "test": "unknown",
-      "score": null
-    },
-    "OnlineSecurity": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "OnlineBackup": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "DeviceProtection": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "TechSupport": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "StreamingTV": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "StreamingMovies": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "Contract": {
-      "drift_detected": true,
-      "test": "unknown",
-      "score": null
-    },
-    "PaperlessBilling": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
-    },
-    "PaymentMethod": {
-      "drift_detected": false,
-      "test": "unknown",
-      "score": null
+      "test": "ks_2samp",
+      "score": 0.0
     }
   },
-  "reference": "/home/gadour/Desktop/new project/other/mlops-project-documentation/.worktrees/backend-agent/data/monitoring/reference.csv",
-  "current": "/home/gadour/Desktop/new project/other/mlops-project-documentation/.worktrees/backend-agent/data/monitoring/current.csv",
+  "reference": "/tmp/pytest-of-gadour/pytest-10/test_detect_drift_with_env_var0/reference.csv",
+  "current": "/tmp/pytest-of-gadour/pytest-10/test_detect_drift_with_env_var0/current.csv",
   "generated_at": null
 }

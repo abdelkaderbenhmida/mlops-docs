@@ -122,6 +122,8 @@ class TestPipelineEndToEnd:
         ])
         monkeypatch.setattr("src.features.build_features.TARGET_FEATURE", "target")
         monkeypatch.setattr("src.features.build_features.TARGET_COLUMN", "Churn")
+        monkeypatch.setattr("src.models.train.TARGET_FEATURE", "target")
+        monkeypatch.setattr("src.models.evaluate.TARGET_FEATURE", "target")
         monkeypatch.setattr("src.features.build_features.SERVICE_COLUMNS", [
             "OnlineSecurity", "OnlineBackup", "DeviceProtection", "TechSupport",
             "StreamingTV", "StreamingMovies"
@@ -265,12 +267,12 @@ class TestPipelineEndToEnd:
 
         def run_once():
             processed_path = self.data_dir / "processed" / "clean.csv"
-            processed_path.parent.mkdir(parents=True)
+            processed_path.parent.mkdir(parents=True, exist_ok=True)
             processed_df = preprocess(self.sample_csv, processed_path)
 
             features_path = self.data_dir / "features" / "features.parquet"
             config_path = self.data_dir / "features" / "features_config.json"
-            features_path.parent.mkdir(parents=True)
+            features_path.parent.mkdir(parents=True, exist_ok=True)
             build_features(processed_path, features_path, config_path)
 
             train_params = {

@@ -16,7 +16,14 @@ from src.data.preprocessing import preprocess, DROP_COLUMNS, NUMERIC_COLUMNS, CA
 class TestPreprocessing:
     """Test preprocessing correctness."""
 
-    def test_drop_customer_id(self):
+    def _run(self, df, tmp_path):
+        """Write df to a CSV and run preprocess with file paths."""
+        input_file = tmp_path / "input.csv"
+        output_file = tmp_path / "output.csv"
+        df.to_csv(input_file, index=False)
+        return preprocess(input_file, output_file)
+
+    def test_drop_customer_id(self, tmp_path):
         """CustomerID column should be dropped."""
         df = pd.DataFrame({
             "CustomerID": ["123", "456"],
@@ -41,10 +48,10 @@ class TestPreprocessing:
             "TotalCharges": [600.0, 1680.0],
             "Churn": ["No", "Yes"],
         })
-        result = preprocess(df, Path("test_output.csv"))
+        result = self._run(df, tmp_path)
         assert "CustomerID" not in result.columns
 
-    def test_numeric_columns_coerced(self):
+    def test_numeric_columns_coerced(self, tmp_path):
         """Numeric columns should be coerced, invalid rows dropped."""
         df = pd.DataFrame({
             "CustomerID": ["1", "2", "3"],
@@ -69,13 +76,13 @@ class TestPreprocessing:
             "TotalCharges": [600.0, "bad", 2160.0],
             "Churn": ["No", "Yes", "No"],
         })
-        result = preprocess(df, Path("test_output.csv"))
+        result = self._run(df, tmp_path)
         assert len(result) == 2
         assert result["Tenure"].dtype in ("int64", "float64")
         assert result["TotalCharges"].dtype in ("int64", "float64")
         assert result["MonthlyCharges"].dtype in ("int64", "float64")
 
-    def test_negative_tenure_dropped(self):
+    def test_negative_tenure_dropped(self, tmp_path):
         """Rows with negative Tenure should be dropped."""
         df = pd.DataFrame({
             "CustomerID": ["1", "2"],
@@ -100,11 +107,11 @@ class TestPreprocessing:
             "TotalCharges": [600.0, 700.0],
             "Churn": ["No", "Yes"],
         })
-        result = preprocess(df, Path("test_output.csv"))
+        result = self._run(df, tmp_path)
         assert len(result) == 1
         assert result["Tenure"].iloc[0] == 10
 
-    def test_categorical_stripped(self):
+    def test_categorical_stripped(self, tmp_path):
         """Categorical columns should be stripped of whitespace."""
         df = pd.DataFrame({
             "CustomerID": ["1"],
@@ -129,13 +136,13 @@ class TestPreprocessing:
             "TotalCharges": [600.0],
             "Churn": [" No "],
         })
-        result = preprocess(df, Path("test_output.csv"))
+        result = self._run(df, tmp_path)
         assert result["Gender"].iloc[0] == "Male"
         assert result["Partner"].iloc[0] == "Yes"
         assert result["InternetService"].iloc[0] == "DSL"
         assert result["Churn"].iloc[0] == "No"
 
-    def test_target_column_preserved(self):
+    def test_target_column_preserved(self, tmp_path):
         """Target column (Churn) should be preserved and stripped."""
         df = pd.DataFrame({
             "CustomerID": ["1"],
@@ -160,11 +167,11 @@ class TestPreprocessing:
             "TotalCharges": [600.0],
             "Churn": [" Yes "],
         })
-        result = preprocess(df, Path("test_output.csv"))
+        result = self._run(df, tmp_path)
         assert TARGET_COLUMN in result.columns
         assert result[TARGET_COLUMN].iloc[0] == "Yes"
 
-    def test_output_columns_match_expected(self):
+    def test_output_columns_match_expected(self, tmp_path):
         """Output should have all expected columns except CustomerID."""
         df = pd.DataFrame({
             "CustomerID": ["1"],
@@ -189,7 +196,7 @@ class TestPreprocessing:
             "TotalCharges": [600.0],
             "Churn": ["No"],
         })
-        result = preprocess(df, Path("test_output.csv"))
+        result = self._run(df, tmp_path)
         expected_cols = set(NUMERIC_COLUMNS + CATEGORICAL_COLUMNS + [TARGET_COLUMN])
         assert set(result.columns) == expected_cols
 

@@ -2,22 +2,22 @@
   "model_uri": "local:models/model.pkl",
   "run_id": null,
   "metrics": {
-    "f1": 0.4474885844748858,
-    "accuracy": 0.7407142857142858,
-    "precision": 0.40273972602739727,
-    "recall": 0.5034246575342466,
-    "roc_auc": 0.7546362692250631,
-    "n_samples": 1400
+    "f1": 0.4375,
+    "accuracy": 0.28,
+    "precision": 0.28,
+    "recall": 1.0,
+    "roc_auc": 0.5,
+    "n_samples": 100
   },
   "thresholds": {
-    "min_f1": 0.35,
+    "min_f1": 0.99,
     "min_accuracy": 0.7,
     "min_roc_auc": 0.72
   },
   "gates": {
     "min_f1": {
       "metric": "f1",
-      "value": 0.35
+      "value": 0.99
     },
     "min_accuracy": {
       "metric": "accuracy",
@@ -28,5 +28,5 @@
       "value": 0.72
     }
   },
-  "gates_passed": true
+  "gates_passed": false
 }
