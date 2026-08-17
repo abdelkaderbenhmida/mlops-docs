@@ -236,7 +236,6 @@ class TestDriftDetection:
         assert report["reference"] == str(ref_path)
         assert report["current"] == str(cur_path)
 
-    @pytest.mark.skipif(True, reason="Requires evidently installed; tested via fallback")
     def test_detect_drift_with_evidently(self, tmp_path):
         """detect_drift should use evidently when available."""
         pytest.importorskip("evidently")

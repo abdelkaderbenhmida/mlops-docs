@@ -41,7 +41,7 @@
       "score": 0.0
     }
   },
-  "reference": "/tmp/pytest-of-gadour/pytest-10/test_detect_drift_with_env_var0/reference.csv",
-  "current": "/tmp/pytest-of-gadour/pytest-10/test_detect_drift_with_env_var0/current.csv",
+  "reference": "/tmp/pytest-of-gadour/pytest-25/test_detect_drift_with_env_var0/reference.csv",
+  "current": "/tmp/pytest-of-gadour/pytest-25/test_detect_drift_with_env_var0/current.csv",
   "generated_at": null
 }
