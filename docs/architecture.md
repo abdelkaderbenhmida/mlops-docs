@@ -1,6 +1,6 @@
-# Architecture de la plateforme de décision de fraude
+# Architecture de la plateforme de prévision de la demande
 
-Ce document décrit l'architecture en couches de la plateforme **Sentry** (décision de fraude au paiement en temps réel), le flux de données de bout en bout et le rôle de chaque composant. Il fait référence aux fichiers réels du dépôt et à la spécification `mlops-project-documentation.md`.
+Ce document décrit l'architecture en couches de la plateforme **MLOps de prévision de la demande** (prédiction de `units_sold` par magasin/SKU), le flux de données de bout en bout et le rôle de chaque composant. Il fait référence aux fichiers réels du dépôt et à la spécification `mlops-project-documentation.md`.
 
 ---
 
@@ -11,40 +11,38 @@ La plateforme est organisée en **couches** qui isolent les responsabilités :
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  COUCHE PRÉSENTATION / INTERFACES                                       │
-│  - API FastAPI (src/api/) : décision de fraude en temps réel +          │
+│  - API FastAPI (src/api/) : prévision de la demande (unitaire / lot) +  │
 │    observabilité                                                        │
-│  - UI Airflow (port 8080), UI MLflow (port 5000), UI MinIO (port 9001)  │
-│  - Grafana (port 3000) : dashboards (métriques métier d'abord)          │
+│  - Dashboard web (ui/index.html, servi par GET /)                       │
+│  - UI Airflow (8080), UI MLflow (5000), UI MinIO (9001), Grafana (3000) │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  COUCHE ORCHESTRATION                                                   │
-│  - Apache Airflow : 4 DAGs (ingestion, réconciliation des labels,       │
-│    training, retraining)                                                │
-│  - GitHub Actions : CI (ci.yml) et CD (cd.yml, shadow→canary→full)      │
+│  - Apache Airflow : 3 DAGs (ingestion, training hebdo, retraining drift)│
+│  - GitHub Actions : CI (ci.yml) et CD (cd.yml, staging → production)    │
 │  - DVC : pipeline de données reproductible (dvc.yaml)                   │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  COUCHE APPLICATION / SERVICES                                          │
-│  - Service de décision (src/api/ : decision.py, rules_engine.py)        │
-│  - Entraînement (src/models/ : train.py, threshold.py, evaluate.py,     │
-│    promote.py, exploration.py)                                          │
-│  - Feature engineering point-in-time (src/features/)                    │
-│  - Streaming (src/streaming/ : decision_consumer.py,                    │
-│    label_reconciliation.py)                                             │
-│  - Monitoring drift + adversarial (src/monitoring/)                     │
+│  - Service d'inférence (src/api/ : main.py, schemas.py, model_loader.py,│
+│    metrics.py)                                                          │
+│  - Entraînement (src/models/ : train.py, evaluate.py, promote.py)       │
+│  - Feature engineering (src/features/ : build_features.py,              │
+│    feature_store.py)                                                    │
+│  - Monitoring drift + alerting (src/monitoring/)                        │
 │  - Kubernetes : Deployment + HPA + Service (k8s/)                       │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  COUCHE DONNÉES                                                         │
-│  - Redis : store de features en ligne (sous 25 ms)                      │
-│  - Kafka : événements de décision + agrégation de vélocité              │
+│  - data/external, data/raw, data/processed (CSV)                        │
+│  - data/features : Parquet + features_config.json + schéma (DVC)        │
+│  - data/monitoring : reference.csv, current.csv, drift_report.json,     │
+│    alerts.jsonl                                                         │
+│  - MinIO (S3) : remote DVC + artefacts MLflow                           │
 │  - PostgreSQL 16 : backend store MLflow + métadonnées Airflow           │
-│    + ledger de décisions                                                │
-│  - MinIO (S3) : remote DVC + artefacts MLflow + ledger (objets)         │
 │  - MLflow : tracking, Model Registry, artefacts                         │
-│  - Feature store Parquet versionné (src/features/feature_store.py)      │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  COUCHE OBSERVABILITÉ                                                   │
 │  - Prometheus + Grafana (monitoring/)                                   │
-│  - Alertes : règles Prometheus + alerting.py (Slack / log local)        │
-│  - Garde-fous de canary : agrégés ET par segment (pays, BIN)            │
+│  - Règles d'alerte (monitoring/prometheus/alert_rules.yml)              │
+│  - Alertes : alerting.py (Slack / journal local alerts.jsonl)           │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -55,133 +53,106 @@ La plateforme est organisée en **couches** qui isolent les responsabilités :
 ### 2.1 Schéma complet
 
 ```
-                       Requête d'autorisation de paiement
+                    Données brutes (data/external/dataset.csv ou URL)
                                      │
-                      ┌──────────────▼───────────────┐
-                      │   Service de Décision (FastAPI)│   ◀── budget p99 : 100 ms
-      Redis ◀─────────┼── 1. fetch features online    │
-      store en ligne  │  2. calcul dans la requête    │
-                      │  3. score (ensemble GBM)      │
-                      │  4. surcouche de règles       │
-                      │  5. décision coût attendu     │
-                      └───────────┬───────────────────┘
-                                  │ APPROUVER / RÉVISER / REFUSER
-                                  │
-                     ┌────────────▼─────────────┐
-                     │  Kafka : événements de     │   ◀── asynchrone, hors chemin critique
-                     │  décision                  │
-                     └──┬────────┬────────┬─────┘
-                        │        │        │
-         ┌──────────────▼─┐ ┌────▼─────┐ ┌▼──────────────────┐
-         │ Agrégateur de  │ │ Ledger de│ │ Monitoring temps  │
-         │ features       │ │ décisions│ │ réel (frottement  │
-         │ (streaming)    │ │ (S3+PG)  │ │  de frontière,    │
-         └────────┬───────┘ └────┬─────┘ │  rafales)         │
-                  │              │       └────────┬───────────┘
-                  └──▶ Redis     │                │ alerte
-                                 │                ▼
-                     ┌───────────▼──────────┐  ┌──────────────┐
-                     │ Réconciliation des   │  │ File de revue│
-                     │ labels (chargebacks, │◀─│ analyste     │
-                     │  réclamations,       │  │ fraude       │
-                     │  résultats de revue) │  └──────────────┘
-                     └───────────┬──────────┘
-                                 │ labels matures + faibles
-                     ┌───────────▼─────────────────────────────┐
-                     │  Airflow : DAG de réentraînement        │
-                     │  (hebdomadaire randomisé + drift)        │
-                     │  GE → DVC → split vintage-aware → train  │
-                     │  → seuil matrice de coûts → backtest     │
-                     │  → déploiement shadow                    │
-                     └───────────┬─────────────────────────────┘
-                                 │ jamais directement en production
-                     ┌───────────▼─────────────────────────────┐
-                     │  Shadow (7 j) → Canary 5 % → 25 % → 100 %│
-                     │  rollback automatique sur violation de   │
-                     │  garde-fou                               │
-                     └─────────────────────────────────────────┘
+                    ┌────────────────▼────────────────┐
+                    │  ingestion.py (DVC stage ingest) │  idempotent, CSV/URL
+                    │  → data/raw/                     │
+                    └────────────────┬────────────────┘
+                                     │
+                    ┌────────────────▼────────────────┐
+                    │  preprocessing.py               │  coercition numérique,
+                    │  → data/processed/demand_data.csv│  dropna, units_sold ≥ 0
+                    └────────────────┬────────────────┘
+                                     │  validation.py (Great Expectations)
+                    ┌────────────────▼────────────────┐
+                    │  build_features.py              │  FeatureTransformer
+                    │  → features.parquet + config    │  (mean/std par feature,
+                    │    + feature_store (schéma)     │   FEATURE_ORDER fixe)
+                    └────────────────┬────────────────┘
+                                     │
+                    ┌────────────────▼────────────────┐
+                    │  train.py (RandomForestRegressor)│  split 80/20 (seed 42)
+                    │  → models/model.pkl, metrics.json│  MLflow tracking + registry
+                    │  → data/monitoring/reference.csv │  (demand_model, version N)
+                    └────────────────┬────────────────┘
+                                     │
+                    ┌────────────────▼────────────────┐
+                    │  evaluate.py                    │  portes : R² ≥ 0,60 ;
+                    │  → latest_report.json           │  MAPE ≤ 25 % ; code ≠ 0
+                    └────────────────┬────────────────┘  si portes non passées
+                                     │
+                    ┌────────────────▼────────────────┐
+                    │  promote.py                     │  Staging → Production si
+                    │  → production_report.json       │  portes OK et candidat ≥
+                    └────────────────┬────────────────┘  champion ; ancienne
+                                     │                   version → Archived
+                    ┌────────────────▼────────────────┐
+                    │  FastAPI (src/api/)             │  POST /predict (unitaire/lot)
+                    │  model_loader : registry → local│  GET /health, /model-info,
+                    │                                 │  /metrics, / (UI)
+                    └────────────────┬────────────────┘
+                                     │
+                    ┌────────────────▼────────────────┐
+                    │  Monitoring                     │
+                    │  Prometheus /metrics (15 s)     │  Grafana : api-performance,
+                    │  drift KS vs reference.csv      │  model-drift
+                    │  alerting : Slack + alerts.jsonl│
+                    └────────────────┬────────────────┘
+                                     │ drift_detected
+                    ┌────────────────▼────────────────┐
+                    │  Airflow retraining_pipeline    │  @daily, short-circuit
+                    │  preprocess → features → train  │  → evaluate → promote si
+                    │  (idem training_pipeline @weekly)│  meilleur → notify
+                    └─────────────────────────────────┘
 ```
 
-### 2.2 Chemin du flux
+### 2.2 Étapes détaillées
 
-1. **Décision en ligne** — `src/api/main.py` (`/decide`) : récupère les features de vélocité depuis Redis, calcule les features dans la requête, score le modèle (GBM), applique la surcouche de règles, décide à trois paliers selon les seuils de la matrice de coûts. Réponse synchrone dans le budget 100 ms p99. Décision émise vers Kafka de façon **asynchrone** (jamais sur le chemin critique).
-2. **Fail-open** — si le modèle est indisponible ou hors budget, `/decide` bascule en mode `rules-only` : les règles déterministes seules décident, le paiement n'est jamais bloqué par la panne du modèle.
-3. **Streaming** — `src/streaming/decision_consumer.py` consomme les événements de décision : met à jour les compteurs de vélocité (fenêtres 1 h / 24 h / 7 j par carte, appareil, marchand, IP) dans Redis, écrit le **ledger de décisions** (version de modèle, snapshot de features, score, seuils, règles, issue).
-4. **Réconciliation des labels** — `label_reconciliation_dag` (quotidien) : `src/streaming/label_reconciliation.py` joint les chargebacks, réclamations clients et résultats de revue aux décisions d'origine et maintient `label_maturity_date`. Les vintages matures alimentent l'entraînement ; les vintages censurés ne sont jamais traités comme « légitimes ».
-5. **Ingestion** — `src/data/ingestion.py`, DAG `data_ingestion_dag` (quotidien 02:00). Sortie normalisée : `data/raw/transactions.parquet` (DVC stage `ingest`).
-6. **Stockage versionné (DVC/MinIO)** — `dvc add` + `dvc push` (tâche `version_data`). Chaque commit Git épingle un snapshot de données — critique car les labels arrivent après l'entraînement et modifient rétroactivement l'historique.
-7. **Feature engineering point-in-time** — `src/features/build_features.py` construit les features de vélocité ; `src/features/point_in_time.py` applique la correction point-in-time (features telles qu'au moment de la transaction, jamais « aujourd'hui ») et inclut le test de fuite. Son état est sérialisé dans `data/features/features_config.json` et embarqué comme artefact MLflow.
-8. **Entraînement** — `src/models/train.py` : GBM, split **vintage-aware** (vintages matures déclarés, censure explicite), labels faibles pondérés pour la fraîcheur. Métriques loggées dans MLflow (coût attendu, capture de fraude, faux refus), modèle enregistré au stage `Staging`. `src/models/threshold.py` dérive `t_low` / `t_high` de la matrice de coûts et de la capacité de revue.
-9. **Évaluation / backtest** — `src/models/evaluate.py` : backtest sur vintages matures uniquement ; gates sur coût attendu, taux de faux refus, capture de fraude. Sortie : `models/evaluation/latest_report.json`.
-10. **Promotion staged** — `src/models/promote.py` : Staging → **Shadow** (7 jours, 100 % du trafic scoré, 0 % actionné) → canary 5 % → 25 % → 100 %. Garde-fous agrégés **et par segment** avec rollback automatique en moins de 5 minutes.
-11. **CI/CD** — GitHub Actions construit les images Docker taguées au SHA du commit, les pousse sur GHCR, déploie en staging (smoke tests) puis en production (shadow → canary → full).
-12. **Monitoring** — Prometheus scrape `/metrics` ; Evidently compare la fenêtre de production à la référence d'entraînement ; les détecteurs adversariaux (`src/monitoring/adversarial_detectors.py`) surveillent le frottement de frontière, les rafales coordonnées et le sondage.
-13. **Réentraînement** — `retraining_pipeline` : déclenché par drift distributionnel, signature adversarial, ou planification hebdomadaire **randomisée** ; passe toujours par shadow avant tout trafic réel.
+1. **Ingestion** — `src/data/ingestion.py` : source résolue `--source` > env `INGESTION_SOURCE` > `data/external/dataset.csv` ; idempotent ; sortie `data/raw/dataset.csv`.
+2. **Prétraitement** — `src/data/preprocessing.py` : coercition des colonnes numériques (`NUMERIC_COLUMNS`), suppression des lignes à valeurs numériques manquantes, filtre `units_sold >= 0`, normalisation de `date` ; sortie `data/processed/demand_data.csv`.
+3. **Validation** — `src/data/validation.py` : suite d'attentes Great Expectations (`great_expectations/expectations/dataset_suite.json`), avec fallback intégré si la bibliothèque est absente ; code non nul si une attente échoue.
+4. **Feature engineering** — `src/features/build_features.py` : `FeatureTransformer` calcule moyenne/écart-type (ddof=0) par feature ; transforme (coercition numérique, erreurs → 0.0) et sélectionne `FEATURE_ORDER` (11 features) ; cible `units_sold` ajoutée ; sorties `data/features/features.parquet` + `data/features/features_config.json`.
+5. **Feature store** — `src/features/feature_store.py` : écrit `features_v{N}.parquet` + schéma documenté (`features_store_schema.json` : nom, type, description, plage attendue) ; versionné par DVC.
+6. **Entraînement** — `src/models/train.py` : `RandomForestRegressor` (n_estimators=300, max_depth=15, min_samples_leaf=5, max_features=sqrt, random_state=42, n_jobs=-1) sur split 80/20 ; métriques `rmse`/`mae`/`r2`/`mape` ; run MLflow `demand-forecasting-training` (tags, params, métriques, artefacts `feature_importances.png` + `predictions_vs_actual.png` + config) ; `mlflow.sklearn.log_model(…, registered_model_name="demand_model")` ; persistance locale `models/model.pkl` + `metrics.json` ; écriture de la référence de drift `data/monitoring/reference.csv` (features + `prediction` + `units_sold` du jeu de test).
+7. **Évaluation** — `src/models/evaluate.py` : jeu de test = `reference.csv` (prioritaire) sinon échantillon du dataset ; portes `min_r2=0.60` (`>=`) et `max_mape=25.0` (`<=`) ; rapport `models/evaluation/latest_report.json` ; sortie non nulle si portes non passées.
+8. **Promotion** — `src/models/promote.py` : refuse si `gates_passed=false` (sauf `--force`) ; refuse si le candidat ne bat pas le modèle en production sur le même jeu de test ; archive l'ancienne version Production ; écrit `models/evaluation/production_report.json`.
+9. **Service d'inférence** — `src/api/` : chargement unique au démarrage (`models:/demand_model/Production`, ou `MLFLOW_MODEL_URI`, ou fallback `models/model.pkl`) ; `FeatureTransformer` depuis `features_config.json` ; `POST /predict` (objet ou liste, 422 si invalide/vide) ; réponse `predicted_units` + `demand_bucket` (low ≤15 / medium ≤35 / high ≤60 / very_high >60) + modèle/version ; métriques Prometheus (`model_prediction_value`, `predictions_total{model_version}`, `mlops_model_version{model_name}`).
+10. **Monitoring drift** — `src/monitoring/drift_detection.py` : test KS à deux échantillons par feature numérique (`p < 0.05` et `stat > 0.1`), score = fraction dérivée, seuil 0,3 (env `DRIFT_THRESHOLD`), rapport `data/monitoring/drift_report.json`. **Alerting** — `src/monitoring/alerting.py` : Slack (env `SLACK_WEBHOOK_URL`) + journal `data/monitoring/alerts/alerts.jsonl` toujours écrit.
+11. **Orchestration** — Airflow : `data_ingestion_dag` (quotidien 02:00 : ingest → validate → DVC add/commit/push MinIO), `training_pipeline` (@weekly : validate → preprocess → features → train → evaluate → promote → notify), `retraining_pipeline` (@daily : `check_drift` short-circuit → si drift : preprocess → features → train → evaluate → promote-si-meilleur → notify) ; plugin `DriftDetectedSensor` sonde `drift_report.json`.
 
 ---
 
-## 3. Couches en détail
+## 3. Composants du dépôt
 
-### 3.1 Couche données
-
-| Élément | Fichier | Rôle |
+| Composant | Fichiers | Rôle |
 |---|---|---|
-| Transactions brutes synthétiques | `scripts/generate_synthetic_data.py` | Génère le dataset de démonstration (fraude card-not-present) |
-| Raw versionné | `data/raw/transactions.parquet` | DVC stage `ingest`, poussé vers MinIO |
-| Processed | `data/processed/transactions.parquet` | DVC stage `preprocess` |
-| Features | `data/features/features.parquet` + `features_config.json` | DVC stage `build_features` — vélocité + features point-in-time |
-| Jeu vintage-aware | `data/training/train_vintage_aware.parquet` | DVC stage `build_training_set` — vintages matures/censurés déclarés |
-| Feature store | `src/features/feature_store.py` | Versions Parquet `features_v{N}.parquet` (offline) + store en ligne Redis |
-| Référence drift | `data/monitoring/reference.csv` | Jeu de test mature retenu par `train.py` |
-| Fenêtre courante | `data/monitoring/current.csv` | Décisions de production comparées par Evidently |
-| Ledger de décisions | Kafka → S3 + PostgreSQL | Enregistrement immuable de chaque décision (version de modèle, features, score, seuils, règles, issue) |
-
-### 3.2 Couche stockage
-
-- **MinIO** (`docker/docker-compose.yml`, service `minio`) — bucket `mlops-bucket` avec sous-dossiers `data/` (remote DVC), `mlflow-artifacts/` et `decision-ledger/`. Console sur le port 9001.
-- **PostgreSQL 16** (service `postgres`) — backend store du serveur MLflow (base `mlflow`) et ledger de décisions (index de recherche). Airflow utilise aussi cette base via `AIRFLOW__DATABASE__SQL_ALCHEMY_CONN`.
-- **Redis** (service `redis`) — store de features en ligne : compteurs de vélocité à lecture sous 25 ms.
-- **Kafka** (service `kafka`) — événements de décision (topic `decisions`), agrégation streaming, logging asynchrone.
-- **MLflow** (`mlflow/Dockerfile.mlflow`) — serveur sur le port 5000 : tracking des runs et Model Registry.
-
-### 3.3 Couche orchestration
-
-- **Airflow 2.9.2** (`docker/docker-compose.yml`, service `airflow`) — exécuteur LocalExecutor, DAGs montés depuis `airflow/dags`, code source monté depuis `src/`. Le conteneur installe `requirements.txt` au démarrage.
-- **DVC** — `dvc.yaml` déclare les stages `ingest`, `preprocess`, `build_features`, `build_training_set`, `train` ; `Makefile` expose les commandes équivalentes pour l'exécution hors Airflow.
-- **GitHub Actions** — `ci.yml` et `cd.yml` orchestrent qualité, build et déploiement staged (voir `docs/deployment.md`).
-
-### 3.4 Couche application
-
-- **Service de décision FastAPI** (`src/api/`) — endpoint `/decide` (mono et batch), `/health`, `/metrics`, `/model-info`. Logique à trois paliers dans `src/api/decision.py`, surcouche de règles dans `src/api/rules_engine.py`, chemin fail-open intégré. Schémas pydantic dans `src/api/schemas.py`.
-- **Services ML** — `src/models/` (train/threshold/evaluate/promote/exploration), `src/features/` (build_features/velocity_aggregator/point_in_time/feature_store), `src/data/` (ingestion/preprocessing/validation).
-- **Streaming** — `src/streaming/` (decision_consumer, label_reconciliation).
-- **Monitoring** — `src/monitoring/` (drift_detection, adversarial_detectors, alerting).
-
-### 3.5 Couche observabilité
-
-- **Prometheus** (`monitoring/prometheus/prometheus.yml`) — job `mlops-api` (cible `api:8000`) et `mlops-api-local` (cible `host.docker.internal:8000`). Règles dans `alert_rules.yml`.
-- **Grafana** (`monitoring/grafana/dashboards/`) — `business-metrics.json` (coût net par 1 000 transactions, capture de fraude, faux refus, ratio de chargeback, revue) et `model-drift.json`, provisionnés en lecture seule dans le conteneur.
+| Ingestion | `src/data/ingestion.py` | Récupère les données brutes (CSV/URL), idempotent |
+| Prétraitement | `src/data/preprocessing.py` | Nettoyage du jeu de demande |
+| Validation | `src/data/validation.py` + `great_expectations/` | Suites d'attentes déclaratives |
+| Features | `src/features/build_features.py` | `FeatureTransformer`, `FEATURE_ORDER`, config sérialisée |
+| Feature store | `src/features/feature_store.py` | Parquet versionné + schéma documenté |
+| Entraînement | `src/models/train.py` | RandomForestRegressor + MLflow + registry |
+| Évaluation | `src/models/evaluate.py` | Métriques + portes R²/MAPE |
+| Promotion | `src/models/promote.py` | Staging → Production conditionnelle |
+| API | `src/api/main.py`, `schemas.py`, `model_loader.py`, `metrics.py` | Service d'inférence + observabilité |
+| Drift | `src/monitoring/drift_detection.py` | KS par feature + score global |
+| Alerting | `src/monitoring/alerting.py` | Slack + journal local |
+| Orchestration | `airflow/dags/`, `airflow/plugins/` | 3 DAGs + sensor de drift |
+| Conteneurisation | `docker/` | Image API multi-stage non-root + stack complète |
+| Kubernetes | `k8s/` | Deployment/Service/ConfigMap/HPA + overlays |
+| CI/CD | `.github/workflows/` | CI qualité + CD staging → production approuvée |
+| Monitoring | `monitoring/` | Prometheus (config + alert rules), dashboards Grafana |
+| UI | `ui/index.html` | Dashboard de prévision servi par l'API |
+| Données | `data/` | external → raw → processed → features → monitoring |
+| Modèles | `models/` | `model.pkl`, artefacts, rapports d'évaluation |
 
 ---
 
-## 4. Garanties transverses
+## 4. Notes de conception
 
-- **Pas de training/serving skew** : le même `FeatureTransformer` (état sérialisé dans `features_config.json`) est appliqué à l'entraînement (`build_features.py`) et à l'inférence (`model_loader.py` → `ModelBundle.predict_proba`).
-- **Correction point-in-time** : chaque ligne d'entraînement est construite avec les features telles qu'au moment de la transaction. Une tentative de fuite temporelle est rejetée par un test dédié (`tests/unit/test_point_in_time.py`).
-- **Vintages explicites** : les transactions non matures ne sont jamais labellisées négatives ; `label_maturity_date` est suivie par le pipeline.
-- **Traçabilité de bout en bout** : un modèle de production est relié à son `run_id` MLflow, son commit Git (`git_commit`), sa version de données (`DVC_DATA_VERSION`) et son rapport d'évaluation. **Chaque décision** est reconstruisible depuis le ledger avec sa version de modèle exacte (exigence réglementaire et de litige).
-- **Immutabilité** : images taguées au SHA du commit (CD), jamais de `latest` en production.
-- **Promotion sous contrainte** : gates de qualité sur vintages matures **et** 7 jours de shadow, puis canary avec garde-fous segmentés ; l'ancienne version est archivée.
-- **Fail-open** : une panne du modèle dégrade vers les règles seules, ne bloque jamais les paiements.
-- **Automatisation de la boucle** : drift/signature adversarial → réentraînement vintage-aware → shadow → canary → nouvelle fenêtre de référence.
-
----
-
-## 5. Environnements
-
-| Environnement | Outils | Caractéristiques |
-|---|---|---|
-| Local | `docker/docker-compose.yml`, `mlflow/docker-compose.yml` | Toute la stack en un `docker compose up` (dont Redis + Kafka) |
-| CI | GitHub Actions (`ci.yml`) | Pipeline qualité + build + scan Trivy + test de fuite temporelle |
-| Staging | K8s `k8s/overlays/staging`, GitHub Actions (`cd.yml`) | 2 réplicas, smoke tests automatisés |
-| Production | K8s `k8s/overlays/production` | 5 réplicas, HPA, approbation manuelle, **shadow → canary → full**, rolling update |
+- **Parité entraînement/inférence** : le `FeatureTransformer` et son ordre de features sont sérialisés dans `features_config.json` ; `train.py` et `model_loader.py` le consomment tous deux. Testé (`test_train_inference_parity`).
+- **MLflow optionnel au runtime** : entraînement et chargement API continuent en mode offline (modèle local + avertissement) si le serveur est injoignable.
+- **Fallback local** : si le registry est injoignable, l'API sert `models/model.pkl` (version `local`) — le service ne tombe pas.
+- **Zéro downtime** : RollingUpdate `maxUnavailable: 0`, probes `/health`, HPA 2–10 pods.
+- **Sécurité** : secrets via `.env.example` (jamais commités), `secretRef` optionnel en Kubernetes, image non-root, bandit en CI.

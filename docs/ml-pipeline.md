@@ -1,225 +1,173 @@
-# Pipeline ML — entraînement vintage-aware et seuil par coût attendu
+# Pipeline ML — Plateforme de prévision de la demande
 
-Le pipeline ML exécute la chaîne **validate → preprocess → build_features (point-in-time) → build_training_set (vintage-aware) → train → threshold → evaluate (backtest) → promote (shadow)**. Il est déclaré dans `dvc.yaml` (stages `ingest`, `preprocess`, `build_features`, `build_training_set`, `train`) et orchestré de deux façons équivalentes : les cibles du `Makefile` en local, et les DAGs Airflow `training_pipeline` / `retraining_pipeline` en production.
-
-Deux propriétés distinguent ce pipeline d'un pipeline MLOps générique, et elles sont structurellement nécessaires à la fraude :
-
-1. **Correction point-in-time** : chaque ligne d'entraînement est construite avec les features telles qu'au moment de la transaction, jamais « aujourd'hui ». Une fuite temporelle fait échouer le build.
-2. **Vintages et maturité des labels** : les transactions non matures ne sont jamais labellisées négatives. Le pipeline déclare explicitement quels vintages sont matures et lesquels sont censurés, et combine des labels faibles (signalements clients, revues) pour garder de la fraîcheur.
+Ce document décrit le pipeline ML détaillé de la plateforme de prévision de la demande : données, feature engineering, entraînement, évaluation avec portes de qualité, promotion, et orchestration.
 
 ---
 
 ## 1. Vue d'ensemble
 
 ```
-data/external/transactions.parquet  (jeu de démonstration — fraude card-not-present)
-        │  Makefile: data  (scripts/generate_synthetic_data.py)
+data/external/dataset.csv  (source, ou URL)
+        │  ingestion.py            (DVC stage: ingest)
         ▼
- ingest (DVC stage)          src/data/ingestion.py
+data/raw/dataset.csv
+        │  preprocessing.py        (DVC stage: preprocess)
         ▼
- data/raw/transactions.parquet  ───────▶  versionné + poussé vers MinIO (dvc add/push)
+data/processed/demand_data.csv
+        │  validation.py (Great Expectations)
+        │  build_features.py       (DVC stage: build_features)
         ▼
- preprocess (DVC stage)      src/data/preprocessing.py
+data/features/features.parquet  +  features_config.json  +  schéma (feature_store)
+        │  train.py                (DVC stage: train)
         ▼
- data/processed/transactions.parquet
+models/model.pkl  +  metrics.json  +  MLflow run + registry (demand_model)
+        │  evaluate.py   →  latest_report.json  (portes R² ≥ 0,60 ; MAPE ≤ 25 %)
         ▼
- validate                    src/data/validation.py  (suite Great Expectations)
+        │  promote.py    →  production_report.json (Staging → Production)
         ▼
- build_features (DVC stage)  src/features/build_features.py  (+ velocity_aggregator,
-        ▼                     point_in_time, feature_store)
- data/features/features.parquet + features_config.json
-        ▼
- build_training_set (DVC stage)  src/features/point_in_time.py
-        ▼  (split vintage-aware : vintages matures vs censurés, labels faibles)
- data/training/train_vintage_aware.parquet
-        ▼
- train (DVC stage)           src/models/train.py  →  MLflow Tracking + Registry (Staging)
-        ▼  (GBM, coût attendu comme métrique primaire)
- models/model.pkl · metrics.json · data/monitoring/reference.csv
-        ▼
- threshold                   src/models/threshold.py  →  t_low / t_high depuis la
-        ▼                     matrice de coûts + capacité de revue
- backtest                    src/models/evaluate.py  →  models/evaluation/latest_report.json
-        ▼   (gates : coût attendu, faux refus, capture de fraude — vintages matures)
- promote                     src/models/promote.py   →  Staging → Shadow → canary → Production
-        ▼
- models/evaluation/production_report.json   (lu par l'API /model-info)
+API FastAPI (src/api/)  +  monitoring (reference.csv, drift, alertes)
 ```
 
 ---
 
-## 2. Les étapes en détail
+## 2. Données
 
-### 2.1 Ingestion — `src/data/ingestion.py`
+| Fichier | Rôle |
+|---|---|
+| `data/external/dataset.csv` | Source d'ingestion (ou URL) |
+| `data/raw/dataset.csv` | Données brutes normalisées (idempotent) |
+| `data/raw/demand_data.csv` | Jeu de démonstration : ventes par magasin/SKU |
+| `data/processed/demand_data.csv` | Données nettoyées |
 
-- Source résolue : argument `--source` > variable `INGESTION_SOURCE` > défaut `data/external/transactions.parquet`.
-- Accepte un chemin local ou une URL (`http://`, `https://`, `s3://`).
-- `normalize()` : nettoie les noms de colonnes, les chaînes, applique les types attendus et convertit les montants.
-- Sortie : `data/raw/transactions.parquet`. Opération **idempotente**.
-- DVC : stage `ingest` (`dvc.yaml`) / cible `make ingest`. Dans Airflow, la tâche `version_data` ajoute le fichier à DVC et pousse vers le remote.
+Colonnes du jeu de demande : `store_id, sku_id, date, day_of_week, month, is_holiday, price, promotion, temperature, inventory_level, competitor_price, store_traffic, units_sold` — **cible : `units_sold`**.
 
-### 2.2 Préprocessing — `src/data/preprocessing.py`
+Prétraitement (`preprocessing.py`) : coercition des colonnes numériques, suppression des lignes à valeurs manquantes, filtre `units_sold >= 0`, normalisation de `date` (chaîne nettoyée).
 
-- Supprime les identifiants non prédictifs (`DROP_COLUMNS` — y compris tout champ permettant de reconstruire le PAN ; la carte n'apparaît que sous forme hachée).
-- Force les types numériques (montants, fenêtres), supprime les lignes invalides (`dropna`) et filtre les valeurs hors domaine.
-- Sortie : `data/processed/transactions.parquet`. Idempotent. DVC stage `preprocess` / `make preprocess`.
+Validation (`validation.py`) : suite d'attentes Great Expectations (`great_expectations/expectations/dataset_suite.json`) — nombre de lignes, non-nullité, plages, types. Fallback intégré si la bibliothèque absente (la validation tourne toujours, y compris en CI). Code non nul si une attente échoue.
 
-### 2.3 Validation — `src/data/validation.py`
+---
 
-- Charge la suite déclarative `great_expectations/expectations/dataset_suite.json`.
-- Exécute la validation via l'API Great Expectations (`from_pandas`), avec un **évaluateur léger intégré** en fallback pour que la validation tourne toujours (notamment en CI).
-- Expectations spécifiques au contexte fraude : `label_maturity_date` présente et cohérente avec la date de transaction, `card_hash` non nul, montants dans le domaine, BIN à 6 chiffres.
-- Sortie : résumé `{total, passed, failed, results}`. **Quitte en erreur** (code 1) si au moins une expectation échoue (`ValidationError`).
-- CLI : `python src/data/validation.py [--input data/processed/transactions.parquet] [--suite ...] [--json-output ...]`.
+## 3. Feature engineering (`src/features/build_features.py`)
 
-### 2.4 Feature engineering — `src/features/build_features.py`
+### 3.1 Features (11)
 
-- Construit les features de vélocité (fenêtres 1 h / 24 h / 7 j par carte, appareil, marchand, IP) :
-
-```
-card_txn_count_1h, card_txn_count_24h, card_txn_count_7d
-card_amount_sum_24h / card_amount_avg_30d          # ratio à sa propre ligne de base
-card_distinct_merchants_24h
-card_distinct_countries_24h
-device_distinct_cards_24h                          # signal de fraude très fort
-ip_distinct_cards_1h
-merchant_decline_rate_1h
-time_since_last_txn_seconds
-amount_zscore_vs_card_history
-is_first_txn_at_merchant
-billing_shipping_distance_km
-hour_of_day_zscore_vs_card_history
+```python
+FEATURE_ORDER = [
+    "store_id", "sku_id", "day_of_week", "month", "is_holiday",
+    "price", "promotion", "temperature", "inventory_level",
+    "competitor_price", "store_traffic",
+]
+TARGET_FEATURE = "units_sold"
 ```
 
-- En production, les compteurs de vélocité sont maintenus en continu par l'agrégateur streaming (`src/features/velocity_aggregator.py`) et lus depuis le store en ligne Redis ; à l'entraînement, ils sont recalculés avec la correction point-in-time.
-- **Le même objet est réutilisé à l'inférence** (`ModelBundle.predict_proba` dans `src/api/model_loader.py`), ce qui garantit l'absence de *training/serving skew*.
-- L'état ajusté est sérialisé dans `data/features/features_config.json` et loggé comme artefact MLflow (`mlflow.log_artifact`).
-- Sorties (DVC stage `build_features`) : `data/features/features.parquet` + `features_config.json`. Cible : `make features`.
-- Feature store : `src/features/feature_store.py` écrit des versions numérotées `features_v{N}.parquet` (offline, versionnées par DVC) et alimente le store en ligne Redis (online). CLI : `python src/features/feature_store.py --list-versions`.
+### 3.2 `FeatureTransformer`
 
-### 2.5 Correction point-in-time — `src/features/point_in_time.py`
+- `fit(df)` : moyenne et écart-type (ddof=0) par feature numérique → `numeric_stats`
+- `transform(df)` : coercition numérique (erreurs → 0.0), sélection `FEATURE_ORDER`
+- `to_config()` / `from_config()` : sérialisation dans `data/features/features_config.json` (features, statistiques, ordre)
 
-- Pour chaque transaction au temps T, les features de vélocité reflètent l'état **à T** — jamais l'état à aujourd'hui.
-- Calcule `label_maturity_date` et partitionne les transactions en **vintages matures** (labels autoritaires arrivés) et **vintages censurés** (labels encore possibles — ex : < 120 jours).
-- **Règle d'or** : « pas encore de chargeback » ≠ « légitime ». Les vintages censurés ne sont jamais utilisés comme négatifs purs ; ils peuvent contribuer via le canal de labels faibles pondérés.
-- **Test de fuite intégré** : `tests/unit/test_point_in_time.py` construit délibérément une ligne d'entraînement en injectant des features calculées « aujourd'hui » pour une transaction passée — le pipeline doit la rejeter, sinon le build échoue.
-- Sortie (DVC stage `build_training_set`) : `data/training/train_vintage_aware.parquet`. Cible : `make training-set`.
+**Parité entraînement/inférence** : `train.py` et `model_loader.py` (API) consomment la même config — aucun training-serving skew. Testé par `tests/unit/test_features.py::test_train_inference_parity`.
 
-### 2.6 Entraînement — `src/models/train.py`
+### 3.3 Feature store (`src/features/feature_store.py`)
 
-- Modèle : **ensemble d'arbres à gradient boosté (GBM)** — score en quelques millisecondes, contraint par le budget d'inférence de 20 ms. Hyperparamètres par défaut surchargeables en CLI.
-- Split **vintage-aware** : train/test découpés sur les vintages matures déclarés (pas de fuite de labels entre les deux).
-- Labels : matures (chargebacks, décisions de revue) + **labels faibles pondérés** (signalements clients, résultats de revue récents) pour la fraîcheur.
-- Métriques primaires : **coût attendu** (depuis la matrice de coûts), taux de capture de fraude, taux de faux refus. AUC/F1 en diagnostique seulement.
-- **MLflow** (si un serveur est joignable) :
-  - run `fraud-training`, tags `model_name`, `git_commit`, `data_version` (`DVC_DATA_VERSION`), `vintages_mature`, `vintages_censored`, `registry_version` ;
-  - log des params et des métriques ;
-  - artefacts : matrice de confusion PNG, importances de features PNG, config du transformer, rapport de vintages ;
-  - `mlflow.sklearn.log_model(..., registered_model_name="fraud_model", input_example=...)` ;
-  - transition de la version enregistrée vers le stage **Staging**.
-- Sorties locales : `models/model.pkl` (DVC output), `metrics.json` (métrique DVC), et `data/monitoring/reference.csv` (jeu de test mature + scores + labels, base de référence du drift).
-- En mode hors-ligne (pas de serveur MLflow), l'entraînement continue et ne fait que l'enregistrement local.
+`data/features/features_v{N}.parquet` + schéma documenté (`features_store_schema.json` : nom, type, description, plage attendue), versionné par DVC. Tout modèle est traçable vers son snapshot de features.
 
-### 2.7 Seuils de décision — `src/models/threshold.py`
+---
 
-- Dérive `t_low` et `t_high` de la **matrice de coûts** (pertes de fraude vs faux refus, voir §1.2 de la spécification) et de la **capacité de revue** :
+## 4. Entraînement (`src/models/train.py`)
 
-```
-score < t_low          → APPROUVER
-t_low ≤ score < t_high → RÉVISER   (file analyste, ou step-up 3-D Secure)
-score ≥ t_high         → REFUSER
+Modèle : **RandomForestRegressor** (scikit-learn).
+
+```python
+DEFAULT_PARAMS = {
+    "n_estimators": 300,
+    "max_depth": 15,
+    "min_samples_leaf": 5,
+    "max_features": "sqrt",
+    "random_state": 42,
+    "n_jobs": -1,
+}
 ```
 
-- Si les analystes peuvent traiter 400 revues/heure, `t_low` est réglé pour que la bande RÉVISER produise à peu près ce volume. Le modèle produit un classement ; la contrainte métier détermine où tombent les coupes.
-- Les seuils sont loggés dans MLflow avec le run et **traités comme information sensible** (un attaquant qui connaît la frontière peut l'exploiter).
+- Split **80/20** (`train_test_split(test_size=0.2, random_state=42)`)
+- Métriques : `rmse`, `mae`, `r2`, `mape` (MAPE hors `y = 0`) + `train_size`/`test_size`
+- MLflow (run `demand-forecasting-training`) : tags (`model_name=demand_model`, `task=demand_forecasting`), params, métriques, artefacts (`feature_importances.png` top-20, `predictions_vs_actual.png`, `features_config.json`)
+- `mlflow.sklearn.log_model(…, registered_model_name="demand_model", input_example=X_test.iloc[[0]])`
+- Persistance locale : `models/model.pkl` (joblib) + `metrics.json`
+- Référence de drift : `data/monitoring/reference.csv` (features + `prediction` + `units_sold` du jeu de test)
 
-### 2.8 Backtest — `src/models/evaluate.py`
+CLI : `python src/models/train.py [--data …] [--config …] [--model-output …] [--model-name …] [--n-estimators …] [--max-depth …] [--min-samples-leaf …] [--seed …]`
 
-- Résout le modèle candidat : `--run-id` (`runs:/<run_id>/model`) > `--model-uri` > `models/model.pkl` local.
-- Charge le jeu de test : `data/monitoring/reference.csv` (vintages matures retenus par `train.py`).
-- Recalcule les métriques et compare aux **quality gates** :
+> MLflow est **optionnel** : serveur injoignable → entraînement offline (avertissement), persistance locale intacte.
 
-| Gate | Variable d'env | Défaut |
+---
+
+## 5. Évaluation (`src/models/evaluate.py`)
+
+### 5.1 Jeu de test
+
+1. `data/monitoring/reference.csv` (prioritaire, s'il existe) — même jeu que l'entraînement
+2. Sinon : échantillon aléatoire du dataset de features (max 5 000 lignes, seed 42)
+
+### 5.2 Métriques
+
+`rmse`, `mae`, `r2`, `mape` (MAPE calculé sur `y ≠ 0`), `n_samples`.
+
+### 5.3 Portes de qualité
+
+| Porte | Seuil | Direction |
 |---|---|---|
-| Coût attendu par 1 000 transactions ≤ | `MAX_EXPECTED_COST_PER_1K` | `5.0` |
-| Taux de faux refus < | `MAX_FALSE_DECLINE_RATE` | `0.008` |
-| Taux de capture de fraude ≥ | `MIN_FRAUD_CAPTURE_RATE` | `0.75` |
-| Précision de revue ≥ | `MIN_REVIEW_PRECISION` | `0.30` |
+| `min_r2` | 0,60 | `r2 >= 0.60` |
+| `max_mape` | 25,0 | `mape <= 25.0` |
 
-- Écrit `models/evaluation/latest_report.json` avec `gates_passed`. **Quitte en erreur (code 1)** si `gates_passed` est faux — le pipeline s'arrête avant la promotion.
-- Un backtest séparé vérifie que le candidat bat le champion sur le coût attendu, **pas** sur l'AUC.
+Surchargeables en CLI (`--min-r2`, `--max-mape`). Rapport écrit dans `models/evaluation/latest_report.json` :
 
-### 2.9 Promotion — `src/models/promote.py`
+```json
+{
+  "model_uri": "local:models/model.pkl",
+  "run_id": null,
+  "metrics": { "rmse": 25.1, "mae": 21.12, "r2": -0.68, "mape": 49.42, "n_samples": 100 },
+  "thresholds": { "min_r2": 0.6, "max_mape": 25.0 },
+  "gates": { "min_r2": { "metric": "r2", "value": 0.6, "direction": ">=" },
+             "max_mape": { "metric": "mape", "value": 25.0, "direction": "<=" } },
+  "gates_passed": false
+}
+```
 
-- Lit `latest_report.json` ; refuse de promouvoir si `gates_passed` est faux (sauf `--force`).
-- Récupère la version `Staging` du registry et la compare au modèle `Production` courant (lecture de `production_report.json`) : le candidat doit avoir un **coût attendu ≤ coût de production** (sauf `--force`).
-- **Jamais directement en production** : la promotion mène au stage **Shadow** (7 jours sur 100 % du trafic, 0 % actionné). Le passage shadow → canary 5 % → 25 % → 100 % est contrôlé par les garde-fous (§6 de `docs/deployment.md`) et la signature manuelle du responsable fraude.
-- Transition : l'ancienne version `Production` passe en **Archived**, le candidat passe en **Production** après le rollout staged.
-- Écrit `models/evaluation/production_report.json` — consommé par `/model-info` de l'API et par le dashboard Grafana (version servie).
-
-### 2.10 Échantillon d'exploration — `src/models/exploration.py`
-
-- Approuve un échantillon **aléatoire** de la population que le modèle aurait refusée (ex : 0,5 %, plafonné en valeur), pour acheter des labels non biaisés dans la région des refus.
-- C'est la correction du **biais de boucle de feedback** : le modèle ne voit que les résultats des transactions qu'il a approuvées ; sans exploration, il devient progressivement plus confiant sur une région qu'il a cessé d'observer.
-- Budgété comme **coût d'amélioration du modèle**, pas comme perte de fraude — avec accord écrit de la direction et plafond de valeur dur.
+`gates_passed=false` → **code de sortie non nul** (bloque le pipeline/CI). Le dernier rapport du dépôt ne passe pas les portes (voir [état actuel](#8-état-actuel)).
 
 ---
 
-## 3. Exécution
+## 6. Promotion (`src/models/promote.py`)
 
-### 3.1 En local (Makefile / DVC)
+Conditions de promotion Staging → Production :
 
-```bash
-make data                 # génère le dataset synthétique de fraude
-make ingest               # stage 1
-make preprocess           # stage 2
-make validate             # qualité des données
-make features             # stage 3
-make training-set         # stage 4 (vintage-aware + test de fuite)
-MLFLOW_TRACKING_URI=http://localhost:5000 make train     # stage 5
-MLFLOW_TRACKING_URI=http://localhost:5000 make threshold
-MLFLOW_TRACKING_URI=http://localhost:5000 make evaluate
-MLFLOW_TRACKING_URI=http://localhost:5000 make promote
-```
+1. `latest_report.json` existe et `gates_passed=true` — sinon `RuntimeError` (contournable `--force`, déconseillé)
+2. Une version `Staging` existe dans le registry pour `demand_model`
+3. Le candidat **bat le modèle en production** sur le même jeu de test — sinon refus (contournable `--force`)
+4. L'ancienne version Production est archivée (`Archived`)
+5. `models/evaluation/production_report.json` est écrit (nom, version, run_id, métriques) — lu par `/model-info` et les dashboards
 
-Ou équivalent DVC :
+---
 
-```bash
-make dvc-repro            # dvc repro (stages obsolètes uniquement)
-```
-
-> `make setup` crée le venv et installe `requirements-dev.txt` ; `make install` installe `requirements.txt`.
-
-### 3.2 Via Airflow
+## 7. Orchestration (Airflow)
 
 | DAG | Planification | Tâches |
 |---|---|---|
-| `data_ingestion_dag` | `0 2 * * *` (quotidien 02:00) | `ingest_data → validate_data → version_data` |
-| `label_reconciliation_dag` | `0 3 * * *` (quotidien 03:00) | `join_chargebacks → join_claims → join_reviews → update_maturity` |
-| `training_pipeline` | `@weekly` (calendrier randomisé) | `validate_data → preprocess → build_features → build_training_set → train_model → optimize_threshold → evaluate_model → deploy_shadow → notify_team` |
-| `retraining_pipeline` | déclenché par drift / signature adversarial (+ planifié randomisé) | `check_drift` (ShortCircuit) → si drift : `reconcile_labels → preprocess → build_features → build_training_set → train_model → optimize_threshold → evaluate_model → deploy_shadow → notify_team` |
+| `data_ingestion_dag` | `0 2 * * *` | `ingest` → `validate` (GE) → `dvc add` + `dvc commit` + `dvc push` (si remote configuré) |
+| `training_pipeline` | `@weekly` | `validate` → `preprocess` → `build_features` → `train` → `evaluate` → `promote` → `notify` |
+| `retraining_pipeline` | `@daily` | `check_drift` (short-circuit) → si drift : `preprocess` → `build_features` → `train` → `evaluate` → `promote-si-meilleur` → `notify` |
 
-Points d'attention :
-- Dans `training_pipeline`, le `run_id` est transmis de `train_model` à `evaluate_model` via **XCom**.
-- `evaluate_model` lève une erreur si les gates échouent → arrêt avant promotion.
-- Chaque tâche en échec déclenche `send_alert(..., severity="critical")` (`on_failure_callback`).
-- La boucle de réentraînement est pilotée par le DAG `retraining_pipeline` et le plugin `DriftDetectedSensor` (`airflow/plugins/drift_sensor.py`) qui sonde `data/monitoring/drift_report.json`.
-- Le calendrier de réentraînement est **randomisé** (fenêtre aléatoire autour d'une cadence hebdomadaire nominale) : un rythme prévisible est exploitable par un attaquant.
+Mécanismes :
+- `run_id` MLflow transmis de `train` à `evaluate` via **XCom**
+- Échec de tâche → `send_alert(severity="critical")` (Slack si configuré + journal local)
+- Plugin `DriftDetectedSensor` (`airflow/plugins/drift_sensor.py`) : sonde `drift_report.json` (env `DRIFT_REPORT_PATH`), réussit si `drift_detected=true`
+- Le DAG `retraining_pipeline` n'exécute le réentraînement **que** si le drift est détecté (short-circuit)
 
 ---
 
-## 4. Traçabilité
+## 8. État actuel
 
-Un modèle en production est relié à :
+Le dernier run d'entraînement (`metrics.json`) : `rmse=22.85, mae=19.51, r2=-0.12, mape=105.15, train_size=160, test_size=40`. Le dernier rapport d'évaluation (`latest_report.json`) : `rmse=25.10, mae=21.12, r2=-0.68, mape=49.42, n_samples=100, gates_passed=false`.
 
-| Référence | Source |
-|---|---|
-| `run_id` MLflow | `train.py`, repris dans `production_report.json` |
-| `model_version` (Registry) | `promote.py` |
-| Commit Git | tag `git_commit` du run MLflow (`GIT_COMMIT`) |
-| Version des données | tag `data_version` du run (`DVC_DATA_VERSION`), snapshot DVC épingle par commit Git |
-| **Vintages utilisés** | tags `vintages_mature` / `vintages_censored` du run — reproduit la maturité des labels au moment de l'entraînement |
-| Config des features | artefact `features_config.json` loggé dans le run |
-| Seuils de décision | `t_low` / `t_high` loggés avec le run |
-| Jeu d'évaluation | `data/monitoring/reference.csv` (vintages matures, identique pour comparer candidat vs production) |
-| Décisions en production | ledger de décisions (version de modèle, snapshot de features, score, seuils, règles, issue) — chaque décision est reconstruisible |
+Le mécanisme de portes **bloque donc correctement** la promotion du modèle actuel : le pipeline est fonctionnel de bout en bout, mais le pouvoir prédictif du modèle doit être amélioré (features temporelles, hyperparamètres, modèle alternatif — voir la roadmap de la spécification) avant qu'un modèle ne passe en production.

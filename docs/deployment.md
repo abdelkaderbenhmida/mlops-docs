@@ -1,255 +1,104 @@
-# Guide de déploiement
+# Déploiement — Plateforme de prévision de la demande
 
-Ce guide couvre les trois scénarios de déploiement de la plateforme de décision de fraude : la **stack locale** (Docker Compose), la **configuration du remote DVC** (MinIO), et le **déploiement Kubernetes** via GitHub Actions + Kustomize. Le déploiement d'un modèle suit toujours le chemin **shadow → canary → full** décrit dans la spécification (§15).
-
----
-
-## 1. Prérequis
-
-| Outil | Version minimale | Rôle |
-|---|---|---|
-| Python | >= 3.10 | Scripts du pipeline (recommandé 3.11) |
-| Docker + Docker Compose | Docker 24+, Compose v2 | Stack locale et build des images |
-| make | — | Raccourcis du `Makefile` |
-| git | — | Versioning du code et des données (avec DVC) |
-| kubectl + kustomize | — | Déploiement Kubernetes (CD) |
-| (option) DVC CLI | 3.x | Commandes données (`dvc repro/push/pull`) |
+Ce guide couvre les trois scénarios de déploiement de la plateforme de prévision de la demande : la **stack locale** (Docker Compose), la **configuration du remote DVC** (MinIO), et le **déploiement Kubernetes** via GitHub Actions + Kustomize.
 
 ---
 
-## 2. Stack locale (Docker Compose)
+## 1. Stack locale (Docker Compose)
 
-### 2.1 Stack complète
+`docker compose -f docker/docker-compose.yml up -d --build` lance toute la stack :
 
-Le fichier `docker/docker-compose.yml` (projet `mlops-stack`) démarre les services de la plateforme :
+| Service | Image | Port | Rôle |
+|---|---|---|---|
+| `minio` | `minio/minio` | 9000 / 9001 | Stockage objet : remote DVC (`s3://mlops-bucket/data`), artefacts MLflow |
+| `minio-init` | `minio/mc` | — | Crée le bucket (idempotent) |
+| `postgres` | `postgres:16-alpine` | 5432 | Backend store MLflow + métadonnées Airflow |
+| `mlflow` | `mlops-mlflow:local` | 5000 | Serveur tracking + Model Registry (artefacts sur MinIO) |
+| `airflow` | `apache/airflow:2.9.2` | 8080 | Scheduler + webserver ; DAGs montés depuis `airflow/dags` ; code source monté depuis `src/` |
+| `api` | `mlops-api:local` | 8000 | Service d'inférence FastAPI ; `RELOAD_INTERVAL=60` ; healthcheck `/health` |
+| `prometheus` | `prom/prometheus` | 9090 | Scrape `/metrics` de l'API |
+| `grafana` | `grafana/grafana:11.0.0` | 3000 | Dashboards provisionnés (lecture seule) |
 
-| Service | Image / build | Ports | Dépend de | Volume | Rôle |
-|---|---|---|---|---|---|
-| `minio` | `minio/minio:RELEASE.2024-04-06T05-26-02Z` | 9000, 9001 | — | `minio-data` | Remote DVC + artefacts MLflow + ledger |
-| `minio-init` | `minio/mc:RELEASE.2024-04-11T17-52-49Z` | — | minio (healthy) | — | Crée `mlops-bucket` |
-| `postgres` | `postgres:16-alpine` | 5432 | — | `postgres-data` | Backend MLflow + métadonnées Airflow + ledger |
-| `redis` | `redis:7-alpine` | 6379 | — | `redis-data` | **Store de features en ligne** (sous 25 ms) |
-| `kafka` | `apache/kafka:3.7` | 9092 | — | `kafka-data` | **Événements de décision + agrégation de vélocité** |
-| `mlflow` | build `mlflow/Dockerfile.mlflow` | 5000 | postgres, minio | `../mlflow` | Tracking + Model Registry |
-| `airflow` | `apache/airflow:2.9.2-python3.11` | 8080 | postgres, mlflow | DAGs, src, data, dvc.yaml, … | Orchestration (réentraînement, réconciliation des labels) |
-| `api` | build `docker/Dockerfile.api` | 8000 | mlflow, redis | — | Service de décision (100 ms p99) |
-| `prometheus` | `prom/prometheus:v2.51.2` | 9090 | api (healthy) | `prometheus-data` | Métriques + alertes |
-| `grafana` | `grafana/grafana:11.0.0` | 3000 | prometheus | dashboards, `grafana-data` | Dashboards métier + technique |
+Variables surchargeables via `.env` (copier `.env.example`) : `MLFLOW_TRACKING_URI`, `MLFLOW_MODEL_NAME` (défaut `churn_model` dans le compose — **définir `demand_model`**), `MINIO_ROOT_USER/PASSWORD`, `POSTGRES_*`, `AIRFLOW_ADMIN_PASSWORD`, `GRAFANA_*`.
 
-Démarrage :
+> Note : le compose hérite d'une valeur par défaut historique `MLFLOW_MODEL_NAME=churn_model` pour l'API et Airflow. Le nom attendu par `train.py` et `model_loader.py` est **`demand_model`** — définir `MLFLOW_MODEL_NAME=demand_model` dans l'environnement de la stack.
 
-```bash
-cp .env.example .env     # variables par défaut, ajustables
-make compose-up          # docker compose -f docker/docker-compose.yml up -d --build
-```
+### Image API (`docker/Dockerfile.api`)
 
-Arrêt :
-
-```bash
-make compose-down        # docker compose -f docker/docker-compose.yml down
-```
-
-> Les volumes nommés conservent les données (MinIO, Postgres, Redis, Kafka, Prometheus, Grafana) entre deux `up`. Utilisez `docker compose -f docker/docker-compose.yml down -v` pour tout réinitialiser.
-
-### 2.2 Sous-stack MLflow (développement)
-
-`mlflow/docker-compose.yml` (projet `mlflow-stack`) ne démarre que MinIO + Postgres + le serveur MLflow :
-
-```bash
-make mlflow-up           # docker compose -f mlflow/docker-compose.yml up -d --build
-```
-
-Utile pour développer le pipeline hors Airflow, l'UI MLflow restant disponible sur http://localhost:5000.
-
-### 2.3 Points d'entrée
-
-| Service | URL / accès | Identifiants par défaut |
-|---|---|---|
-| MinIO (API S3) | http://localhost:9000 | `minio` / `minio123` |
-| MinIO (console) | http://localhost:9001 | `minio` / `minio123` |
-| Postgres | `localhost:5432`, db `mlflow` | `mlflow` / `mlflow` |
-| Redis | `localhost:6379` | — |
-| Kafka | `localhost:9092` | — |
-| MLflow | http://localhost:5000 | — |
-| Airflow | http://localhost:8080 | `admin` / `admin` |
-| API FastAPI | http://localhost:8000 | — |
-| Prometheus | http://localhost:9090 | — |
-| Grafana | http://localhost:3000 | `admin` / `admin` |
-
-### 2.4 Initialisations au démarrage
-
-- **`minio-init`** crée le bucket `mlops-bucket` (variable `MINIO_BUCKET`) puis les sous-dossiers `data/`, `mlflow-artifacts/` et `decision-ledger/` — il est idempotent (`mc mb --ignore-existing`).
-- **`airflow`** installe `requirements.txt`, exécute `airflow db migrate`, crée l'utilisateur admin (`AIRFLOW_ADMIN_PASSWORD`, défaut `admin`) puis lance le scheduler et le webserver.
-- **`api`** charge le modèle `models:/fraud_model/Production` au démarrage et s'autovérifie via le healthcheck sur `/health`. **Important** : si le modèle est absent, le service démarre quand même en mode `rules-only` (fail-open) — les paiements ne sont jamais bloqués par l'absence du modèle.
+Build multi-stage `python:3.11-slim` :
+- `builder` : installe `requirements.txt` dans `/install`
+- `runtime` : copie `/install`, `src/`, `models/`, `data/features/`, `great_expectations/` ; utilisateur non-root `appuser` (uid 1000) ; `EXPOSE 8000` ; healthcheck `GET /health` ; `CMD uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 2`
 
 ---
 
-## 3. Configuration du remote DVC (MinIO)
-
-### 3.1 Fichier `.dvc/config`
-
-Le remote est déclaré dans `.dvc/config` :
-
-```ini
-[core]
-    remote = storage
-    analytics = false
-
-['remote "storage"']
-    url = s3://mlops-bucket/data
-    endpointurl = http://localhost:9000
-    access_key_id = minio
-    secret_access_key = minio123
-```
-
-En local, ces valeurs correspondent aux identifiants MinIO du `.env` (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`). Pour un autre remote S3 compatible, adapter `endpointurl`, `access_key_id` et `secret_access_key` (ou utiliser `dvc remote modify storage <option>`).
-
-### 3.2 Pousser / récupérer les données
+## 2. Remote DVC (MinIO)
 
 ```bash
-make dvc-push      # dvc push  → pousse les artefacts versionnés vers MinIO
-make dvc-pull      # dvc pull  → les restaure localement
+dvc remote add -d storage s3://mlops-bucket/data
+dvc remote modify storage endpointurl http://localhost:9000   # MinIO local
+dvc push          # pousse les données versionnées vers le remote
+dvc pull          # restaure les données sur une autre machine
 ```
 
-> Dans Airflow, la tâche `version_data` du DAG `data_ingestion_dag` exécute `dvc add data/raw/transactions.parquet && dvc commit -f && dvc push` (le push est sauté si aucun remote n'est configuré).
-
-### 3.3 Reproduire le pipeline
-
-```bash
-make dvc-repro     # dvc repro — rejoue les stages obsolètes selon dvc.yaml
-```
-
-> Le versioning DVC est structurellement nécessaire ici : les labels arrivent après l'entraînement et modifient rétroactivement l'historique. Reproduire un entraînement exige de reproduire le snapshot exact de données (et de maturité des labels) qu'un modèle a vu.
+Variables d'environnement requises (AWS S3-compatible) : `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL` (voir `.env.example`).
 
 ---
 
-## 4. Déploiement Kubernetes
+## 3. Déploiement Kubernetes
 
-### 4.1 Structure Kustomize
+### 3.1 Ressources (k8s/)
 
-```
-k8s/
-├── base/
-│   ├── configmap.yaml       # MLFLOW_TRACKING_URI, MLFLOW_MODEL_NAME, REDIS_URL,
-│   │                        # KAFKA_BOOTSTRAP_SERVERS, seuils, LOG_LEVEL
-│   ├── deployment.yaml      # Deployment mlops-api (RollingUpdate, probes, security context)
-│   ├── hpa.yaml             # HorizontalPodAutoscaler (2→10 réplicas, scale-up rapide)
-│   └── service.yaml         # Service ClusterIP (port 80 → targetPort http 8000)
-├── overlays/
-│   ├── staging/kustomization.yaml      # namespace mlops-staging, 2 réplicas
-│   └── production/kustomization.yaml   # namespace mlops-production, 5 réplicas
-└── kustomization.yaml                   # racine : pointe vers base
-```
-
-### 4.2 Ressources de la base (`k8s/base/`)
-
-**ConfigMap `mlops-api-config`**
-
-| Variable | Valeur |
+| Fichier | Contenu |
 |---|---|
-| `MLFLOW_TRACKING_URI` | `http://mlflow.mlops.svc.cluster.local:5000` |
-| `MLFLOW_MODEL_NAME` | `fraud_model` |
-| `REDIS_URL` | `redis://redis.mlops.svc.cluster.local:6379` |
-| `KAFKA_BOOTSTRAP_SERVERS` | `kafka.mlops.svc.cluster.local:9092` |
-| `RELOAD_INTERVAL` | `60` (rechargement périodique du modèle) |
-| `LOG_LEVEL` | `info` |
-
-**Deployment `mlops-api`**
-
-- 3 réplicas ; stratégie **RollingUpdate** : `maxUnavailable: 0`, `maxSurge: 1` (zéro interruption).
-- Container `api` sur le port 8000, image `ghcr.io/mlops-project/mlops-api` (remplacée en CD), `imagePullPolicy: IfNotPresent`.
-- Env : `envFrom` du ConfigMap + du Secret optionnel `mlops-secrets`.
-- **Probes** : liveness `/health` (initialDelay 30 s, period 10 s) et readiness `/health` (initialDelay 10 s, period 5 s). Le mode `rules-only` ne fait pas échouer la readiness : le service reste disponible même dégradé (fail-open).
-- **Ressources** : requests 200m CPU / 512 Mi mémoire ; limits 1 CPU / 1 Gi mémoire. À dimensionner pour tenir le budget de latence p99 de 100 ms sous charge.
-- **Security context** : `runAsNonRoot`, `runAsUser: 1000`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`.
-
-**HorizontalPodAutoscaler `mlops-api`**
-
-- `minReplicas: 2`, `maxReplicas: 10`.
-- Métriques : CPU à 70 % d'utilisation moyenne, mémoire à 80 %.
-- Scale-down stabilisé sur 300 s (`stabilizationWindowSeconds`).
-- Le trafic de paiement est spiky par construction (Black Friday, ventes flash, attaques coordonnées) : privilégier un scale-up rapide (métrique custom latence p99 via Prometheus Adapter si disponible).
-
-**Service `mlops-api`**
-
-- `type: ClusterIP`, sélecteur `app=mlops-api`, port `80` → `targetPort: http` (8000).
-
-> **Colocalisation** : Redis et le service de décision doivent être déployés dans le même cluster/région pour tenir le budget réseau de 10 ms du tableau de latence.
-
-### 4.3 Overlays
-
-| Paramètre | Staging (`mlops-staging`) | Production (`mlops-production`) |
-|---|---|---|
-| Réplicas | 2 | 5 |
-| CPU requests / limits | 200m / 1 | 500m / 2 |
-| Mémoire requests / limits | 512Mi / 1Gi | 1Gi / 2Gi |
-| Tag d'image par défaut | `staging` | `production` |
-| Labels communs | `environment: staging` | `environment: production` |
-
-Les tags sont surchargés au moment du déploiement par `kustomize edit set image` (CD). Le déploiement manuel d'un environnement :
+| `base/deployment.yaml` | 3 replicas ; RollingUpdate (`maxUnavailable: 0`, `maxSurge: 1`) ; liveness `/health` (30 s initial, 10 s période) ; readiness `/health` (10 s initial, 5 s période) ; requests 200m/512Mi, limits 1 CPU/1 Gi ; `runAsNonRoot: 1000` ; `allowPrivilegeEscalation: false` ; env depuis ConfigMap + secret optionnel `mlops-secrets` |
+| `base/service.yaml` | ClusterIP, port 80 → 8000 |
+| `base/configmap.yaml` | `MLFLOW_TRACKING_URI` (http://mlflow.mlops.svc.cluster.local:5000), `MLFLOW_MODEL_NAME`, `RELOAD_INTERVAL: "60"`, `LOG_LEVEL` |
+| `base/hpa.yaml` | HPA autoscaling/v2 : min 2, max 10 ; CPU 70 %, mémoire 80 % ; scale-down stabilisé 300 s |
+| `overlays/staging/` | 2 replicas, requests 200m/512Mi, limits 1 CPU/1 Gi |
+| `overlays/production/` | 5 replicas, requests 500m/1 Gi, limits 2 CPU/2 Gi |
 
 ```bash
-kubectl create namespace mlops-staging --dry-run=client -o yaml | kubectl apply -f -
-kustomize build k8s/overlays/staging | kubectl apply -f -
-kubectl rollout status deployment/mlops-api --namespace=mlops-staging --timeout=300s
-kubectl get hpa --namespace=mlops-staging
+kubectl apply -k k8s/overlays/staging        # ou /production
+kubectl rollout status deployment/mlops-api --namespace=mlops --timeout=300s
 ```
+
+### 3.2 Déploiement d'une nouvelle version du modèle
+
+Le modèle n'est **pas** embarqué dans l'image. Le service charge au démarrage la version `Production` du registry MLflow (`models:/demand_model/Production`) avec fallback local `models/model.pkl`.
+
+1. Entraîner + enregistrer : `make train` (stage `None`/`Staging` via le registry)
+2. Évaluer : `make evaluate` (portes R² ≥ 0,60 / MAPE ≤ 25 %)
+3. Promouvoir : `make promote` (Staging → Production, si portes passées et candidat ≥ champion)
+4. Redéployer l'image (nouvelle image = traçabilité immuable) — ou, pour les changements non structurants, attendre le rechargement via `RELOAD_INTERVAL`
 
 ---
 
-## 5. GitHub Actions
+## 4. CI/CD (GitHub Actions)
 
-### 5.1 CI — `.github/workflows/ci.yml`
+### 4.1 CI (`ci.yml`) — chaque push/PR
 
-Déclenchée sur push `main` et toutes les PR. Jobs : `lint`, `security` (bandit, échec si sévérité HIGH), `data-validation` (Great Expectations), `unit-tests` (pytest + couverture, **dont `test_point_in_time.py` qui tente une fuite temporelle délibérée et exige le rejet**), `integration-tests` (pipeline E2E puis `pytest -m integration`), `docker-build` (build API + training, scan **Trivy** avec `exit-code: "1"` sur `HIGH,CRITICAL`).
+1. Lint : `ruff check` + `black --check` (src, airflow, scripts)
+2. Sécurité : `bandit -r src` — échec sur finding HIGH
+3. Validation des données : Great Expectations
+4. Tests unitaires + intégration + données (57 tests)
 
-### 5.2 CD — `.github/workflows/cd.yml`
+### 4.2 CD (`cd.yml`) — merge vers `main` (déclencheurs : `src/**`, `docker/**`, `k8s/**`, `requirements*.txt`, `dvc.yaml`)
 
-Déclenchée sur push `main` si les chemins `src/**`, `docker/**`, `k8s/**`, `requirements*.txt` ou `dvc.yaml` changent.
-
-**Job 1 — build-and-push**
-
-- Login GHCR via `GITHUB_TOKEN`, buildx multi-platform avec cache `type=gha`.
-- Tag API : `ghcr.io/<repository>-api:<sha du commit>` (jamais `latest`).
-- Tag training : `ghcr.io/<repository>-training:<sha du commit>`.
-- Le tag est transmis au job suivant via `outputs.image_tag`.
-
-**Job 2 — deploy-staging**
-
-- Environnement GitHub `staging` ; kubeconfig fourni par le secret `KUBECONFIG_STAGING`.
-- `kustomize edit set image ghcr.io/mlops-project/mlops-api=<image_tag>` puis `kustomize build k8s/overlays/staging | kubectl apply -f -`.
-- Attente du rollout (namespace `mlops`, timeout 300 s).
-- **Smoke tests** sur `STAGING_API_URL` : `GET /health` puis `POST /decide` avec un payload complet de transaction.
-
-**Job 3 — deploy-production (staged)**
-
-- Environnement GitHub `production` (protection : **approbation manuelle** requise).
-- Même procédure Kustomize sur `k8s/overlays/production`, namespace `mlops`.
-- Le déploiement du modèle suit ensuite le **rollout staged** (voir §6.2) : shadow 7 jours → canary 5 % → 25 % → 100 %, avec garde-fous agrégés et par segment, et rollback automatique en moins de 5 minutes.
-- Vérifications finales : `kubectl get pods`, `kubectl get hpa`.
-
-**Secrets GitHub requis** : `KUBECONFIG_STAGING`, `KUBECONFIG_PRODUCTION`, `STAGING_API_URL`. Les images sont stockées dans le registre GHCR du dépôt (permission `packages: write`).
-
-### 5.3 Build manuel des images
-
-```bash
-make docker-build-api         # docker build -f docker/Dockerfile.api -t mlops-api:local .
-make docker-build-training    # docker build -f docker/Dockerfile.training -t mlops-training:local .
 ```
+build-and-push (ghcr.io/<repo>-api:<git sha> — jamais latest)
+      │
+deploy-staging : kustomize edit set image + kubectl apply -k overlays/staging
+      │          rollout status + smoke tests (GET /health)
+      ▼
+deploy-production : environment GitHub "production" → approbation manuelle
+                    kubectl apply -k overlays/production
+                    rollout status + vérification pods/HPA
+```
+
+Secrets requis : `KUBECONFIG_STAGING`, `KUBECONFIG_PRODUCTION`, `STAGING_API_URL` (GitHub Environments), `GITHUB_TOKEN` (GHCR).
 
 ---
 
-## 6. Ordre de déploiement recommandé
+## 5. Déploiement du modèle : parcours recommandé (roadmap)
 
-1. **Développement local** : `make setup`, `make mlflow-up`, entraîner et promouvoir un modèle (`make train && make evaluate && make promote`).
-2. **Stack complète locale** : `make compose-up` — le service de décision charge alors le modèle depuis le registry (Redis + Kafka inclus).
-3. **Données versionnées** : `make dvc-push` vers MinIO.
-4. **CI** : valider lint/security/tests/scan Trivy sur une PR — le test de fuite temporelle doit passer.
-5. **Images** : pousser sur `main` → CD build-and-push sur GHCR.
-6. **Staging** : CD déploie l'overlay staging et exécute les smoke tests.
-7. **Production — shadow** : le modèle candidat score 100 % du trafic sans agir. Gate : distribution des scores saine, accord de décision avec le champion dans la bande attendue, latence dans le budget. Durée : 7 jours.
-8. **Production — canary** : 5 % du trafic réel. Gate : taux d'approbation à ±2 % du champion, pas de régression de latence, pas d'effondrement de segment. Durée : 24 h.
-9. **Production — ramp** : 25 %. Gate : taux de fraude non élevé, proxies de faux refus stables. Durée : 48 h.
-10. **Production — full** : 100 % après signature manuelle du responsable fraude.
-
-> **Déclencheurs de rollback automatique** (évalués en continu à chaque étape) : chute du taux d'approbation > 3 points vs champion, latence p99 > 100 ms pendant 5 minutes, taux de refus d'un segment top-20 pays/BIN > 2×, taux d'erreur > 0,5 %. Le monitoring **par segment** est essentiel : un modèle peut tenir les métriques agrégées tout en refusant presque tout un pays à cause d'un bug d'encodage rare.
+Le dépôt déploie actuellement un nouveau modèle par **promotion dans le registry + redéploiement de l'image** (approbation manuelle en CD). Les mécanismes de **shadow puis canary** (évaluer un candidat sur du trafic réel avec garde-fous avant promotion complète) ne sont **pas encore implémentés dans le code** — ils figurent au plan de route (§24 de la spécification). La promotion reste donc protégée par : portes d'évaluation (R²/MAPE), comparaison au champion, et approbation manuelle de production.
