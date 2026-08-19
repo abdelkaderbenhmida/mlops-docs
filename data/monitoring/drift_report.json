@@ -5,43 +5,63 @@
   "drift_detected": false,
   "drifted_features": [],
   "per_column": {
-    "Tenure": {
+    "store_id": {
       "drift_detected": false,
       "test": "ks_2samp",
       "score": 0.0
     },
-    "MonthlyCharges": {
+    "sku_id": {
       "drift_detected": false,
       "test": "ks_2samp",
       "score": 0.0
     },
-    "TotalCharges": {
+    "day_of_week": {
       "drift_detected": false,
       "test": "ks_2samp",
       "score": 0.0
     },
-    "charges_per_tenure": {
+    "month": {
       "drift_detected": false,
       "test": "ks_2samp",
       "score": 0.0
     },
-    "tenure_years": {
+    "is_holiday": {
       "drift_detected": false,
       "test": "ks_2samp",
       "score": 0.0
     },
-    "num_services": {
+    "price": {
       "drift_detected": false,
       "test": "ks_2samp",
       "score": 0.0
     },
-    "SeniorCitizen": {
+    "promotion": {
+      "drift_detected": false,
+      "test": "ks_2samp",
+      "score": 0.0
+    },
+    "temperature": {
+      "drift_detected": false,
+      "test": "ks_2samp",
+      "score": 0.0
+    },
+    "inventory_level": {
+      "drift_detected": false,
+      "test": "ks_2samp",
+      "score": 0.0
+    },
+    "competitor_price": {
+      "drift_detected": false,
+      "test": "ks_2samp",
+      "score": 0.0
+    },
+    "store_traffic": {
       "drift_detected": false,
       "test": "ks_2samp",
       "score": 0.0
     }
   },
-  "reference": "/tmp/pytest-of-gadour/pytest-25/test_detect_drift_with_env_var0/reference.csv",
-  "current": "/tmp/pytest-of-gadour/pytest-25/test_detect_drift_with_env_var0/current.csv",
+  "reference": "/tmp/pytest-of-gadour/pytest-18/test_detect_drift_with_env_var0/reference.csv",
+  "current": "/tmp/pytest-of-gadour/pytest-18/test_detect_drift_with_env_var0/current.csv",
   "generated_at": null
 }

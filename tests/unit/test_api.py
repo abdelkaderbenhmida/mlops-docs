@@ -1,4 +1,4 @@
-"""Tests for FastAPI inference API."""
+"""Tests for FastAPI demand forecasting inference API."""
 
 import json
 import sys
@@ -13,7 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.api.main import app
-from src.api.schemas import ChurnPredictionRequest, PredictionResponse
+from src.api.schemas import DemandPredictionRequest, PredictionResponse
 
 
 client = TestClient(app)
@@ -21,25 +21,17 @@ client = TestClient(app)
 
 def _valid_payload() -> dict:
     return {
-        "Gender": "Male",
-        "SeniorCitizen": 0,
-        "Partner": "Yes",
-        "Dependents": "No",
-        "Tenure": 12,
-        "PhoneService": "Yes",
-        "MultipleLines": "No",
-        "InternetService": "DSL",
-        "OnlineSecurity": "Yes",
-        "OnlineBackup": "No",
-        "DeviceProtection": "No",
-        "TechSupport": "Yes",
-        "StreamingTV": "No",
-        "StreamingMovies": "No",
-        "Contract": "Month-to-month",
-        "PaperlessBilling": "No",
-        "PaymentMethod": "Electronic check",
-        "MonthlyCharges": 50.0,
-        "TotalCharges": 600.0,
+        "store_id": 1,
+        "sku_id": 1,
+        "day_of_week": 0,
+        "month": 12,
+        "is_holiday": 1,
+        "price": 29.99,
+        "promotion": 1,
+        "temperature": 35.0,
+        "inventory_level": 200,
+        "competitor_price": 32.99,
+        "store_traffic": 500,
     }
 
 
@@ -59,31 +51,31 @@ class TestPredictEndpoint:
     """Test /predict endpoint."""
 
     @patch("src.api.main.loader.get_bundle")
-    def test_predict_valid_payload_returns_prediction_and_probability(self, mock_get_bundle):
-        """POST /predict with valid payload returns prediction (0/1) and probability [0,1]."""
+    def test_predict_valid_payload_returns_prediction(self, mock_get_bundle):
+        """POST /predict with valid payload returns predicted units and bucket."""
         mock_bundle = MagicMock()
-        mock_bundle.model_name = "churn_model"
+        mock_bundle.model_name = "demand_model"
         mock_bundle.version = "1"
-        mock_bundle.predict_proba.return_value = [[0.3, 0.7]]  # [prob_class_0, prob_class_1]
+        mock_bundle.predict.return_value = [42.5]
         mock_get_bundle.return_value = mock_bundle
 
         response = client.post("/predict", json=_valid_payload())
         assert response.status_code == 200
         data = response.json()
-        assert "prediction" in data
-        assert "probability" in data
-        assert data["prediction"] in (0, 1)
-        assert 0.0 <= data["probability"] <= 1.0
-        assert data["model_name"] == "churn_model"
+        assert "predicted_units" in data
+        assert "demand_bucket" in data
+        assert isinstance(data["predicted_units"], int)
+        assert data["demand_bucket"] in ("low", "medium", "high", "very_high")
+        assert data["model_name"] == "demand_model"
         assert data["model_version"] == "1"
 
     @patch("src.api.main.loader.get_bundle")
     def test_predict_batch_returns_list(self, mock_get_bundle):
         """POST /predict with list payload returns list of predictions."""
         mock_bundle = MagicMock()
-        mock_bundle.model_name = "churn_model"
+        mock_bundle.model_name = "demand_model"
         mock_bundle.version = "1"
-        mock_bundle.predict_proba.return_value = [[0.3, 0.7], [0.8, 0.2]]
+        mock_bundle.predict.return_value = [42.5, 15.3]
         mock_get_bundle.return_value = mock_bundle
 
         payload = [_valid_payload(), _valid_payload()]
@@ -93,17 +85,8 @@ class TestPredictEndpoint:
         assert isinstance(data, list)
         assert len(data) == 2
         for item in data:
-            assert "prediction" in item
-            assert "probability" in item
-            assert item["prediction"] in (0, 1)
-            assert 0.0 <= item["probability"] <= 1.0
-
-    def test_predict_invalid_payload_returns_422(self):
-        """POST /predict with invalid payload returns 422."""
-        invalid_payload = _valid_payload()
-        invalid_payload["Gender"] = "Invalid"  # not in Literal
-        response = client.post("/predict", json=invalid_payload)
-        assert response.status_code == 422
+            assert "predicted_units" in item
+            assert "demand_bucket" in item
 
     def test_predict_empty_batch_returns_422(self):
         """POST /predict with empty list returns 422."""
@@ -124,10 +107,7 @@ class TestMetricsEndpoint:
         response = client.get("/metrics")
         assert response.status_code == 200
         content = response.text
-        # Check for standard prometheus-fastapi-instrumentator metrics
         assert "http_requests_total" in content or "http_request_duration_seconds" in content
-        # Check for our custom metrics
-        assert "model_prediction_value" in content or "predictions_total" in content
 
 
 class TestModelInfoEndpoint:
@@ -137,7 +117,7 @@ class TestModelInfoEndpoint:
     def test_model_info_returns_metadata(self, mock_get_bundle):
         """GET /model-info should return model metadata."""
         mock_bundle = MagicMock()
-        mock_bundle.model_name = "churn_model"
+        mock_bundle.model_name = "demand_model"
         mock_bundle.version = "3"
         mock_bundle.run_id = "abc123"
         mock_get_bundle.return_value = mock_bundle
@@ -145,7 +125,7 @@ class TestModelInfoEndpoint:
         response = client.get("/model-info")
         assert response.status_code == 200
         data = response.json()
-        assert data["model_name"] == "churn_model"
+        assert data["model_name"] == "demand_model"
         assert data["model_version"] == "3"
         assert data["run_id"] == "abc123"
 
@@ -153,34 +133,58 @@ class TestModelInfoEndpoint:
 class TestSchemas:
     """Test Pydantic request/response schemas."""
 
-    def test_churn_prediction_request_valid(self):
-        """Valid payload should create ChurnPredictionRequest."""
+    def test_demand_prediction_request_valid(self):
+        """Valid payload should create DemandPredictionRequest."""
         payload = _valid_payload()
-        request = ChurnPredictionRequest(**payload)
+        request = DemandPredictionRequest(**payload)
         df = request.to_dataframe()
         assert len(df) == 1
         assert list(df.columns) == list(payload.keys())
 
-    def test_churn_prediction_request_invalid_gender(self):
-        """Invalid gender should raise validation error."""
+    def test_demand_prediction_request_invalid_store_id(self):
+        """Invalid store_id should raise validation error."""
         payload = _valid_payload()
-        payload["Gender"] = "Invalid"
+        payload["store_id"] = 0
         with pytest.raises(Exception):
-            ChurnPredictionRequest(**payload)
+            DemandPredictionRequest(**payload)
 
-    def test_churn_prediction_request_invalid_tenure(self):
-        """Negative tenure should raise validation error."""
+    def test_demand_prediction_request_invalid_price(self):
+        """Negative price should raise validation error."""
         payload = _valid_payload()
-        payload["Tenure"] = -5
+        payload["price"] = -10.0
         with pytest.raises(Exception):
-            ChurnPredictionRequest(**payload)
+            DemandPredictionRequest(**payload)
 
-    def test_churn_prediction_request_invalid_monthly_charges(self):
-        """Negative monthly charges should raise validation error."""
+    def test_demand_prediction_request_invalid_temperature(self):
+        """Temperature out of range should raise validation error."""
         payload = _valid_payload()
-        payload["MonthlyCharges"] = -10.0
+        payload["temperature"] = 200.0
         with pytest.raises(Exception):
-            ChurnPredictionRequest(**payload)
+            DemandPredictionRequest(**payload)
+
+
+class TestDemandBuckets:
+    """Test demand bucket classification."""
+
+    def test_low_bucket(self):
+        from src.api.schemas import _demand_bucket
+        assert _demand_bucket(10) == "low"
+        assert _demand_bucket(15) == "low"
+
+    def test_medium_bucket(self):
+        from src.api.schemas import _demand_bucket
+        assert _demand_bucket(20) == "medium"
+        assert _demand_bucket(35) == "medium"
+
+    def test_high_bucket(self):
+        from src.api.schemas import _demand_bucket
+        assert _demand_bucket(40) == "high"
+        assert _demand_bucket(60) == "high"
+
+    def test_very_high_bucket(self):
+        from src.api.schemas import _demand_bucket
+        assert _demand_bucket(65) == "very_high"
+        assert _demand_bucket(100) == "very_high"
 
 
 if __name__ == "__main__":

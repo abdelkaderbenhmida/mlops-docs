@@ -1,1 +1,1 @@
-"""monitoring package: drift detection and monitoring utilities."""
+"""monitoring package: drift detection and monitoring utilities for demand forecasting."""

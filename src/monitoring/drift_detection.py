@@ -1,16 +1,8 @@
-"""Model and data drift detection with Evidently AI.
+"""Model and data drift detection for demand forecasting.
 
-Compares the current production window (features + predictions logged by the
-API) against the training reference snapshot:
-- data drift per feature (Kolmogorov-Smirnov for numeric, chi-square /
-  Jensen-Shannon for categorical)
-- prediction drift (distribution of predicted probabilities)
+Compares current production data against training reference snapshot:
+- data drift per feature (KS test for numeric)
 - global drift score = fraction of drifted features
-
-If the score exceeds the configured threshold (DRIFT_THRESHOLD, default 0.3),
-`drift_detected` is set to true — the signal that triggers the Airflow
-`retraining_pipeline`. When Evidently is not installed, a scipy-based
-Kolmogorov-Smirnov fallback is used so the check still runs.
 """
 
 from __future__ import annotations
@@ -27,91 +19,16 @@ DEFAULT_REFERENCE = PROJECT_ROOT / "data" / "monitoring" / "reference.csv"
 DEFAULT_CURRENT = PROJECT_ROOT / "data" / "monitoring" / "current.csv"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "monitoring"
 
-NUMERIC_FEATURES = ["Tenure", "MonthlyCharges", "TotalCharges", "charges_per_tenure", "tenure_years", "num_services"]
-CATEGORICAL_FEATURES = [
-    "Gender",
-    "SeniorCitizen",
-    "Partner",
-    "Dependents",
-    "PhoneService",
-    "MultipleLines",
-    "InternetService",
-    "OnlineSecurity",
-    "OnlineBackup",
-    "DeviceProtection",
-    "TechSupport",
-    "StreamingTV",
-    "StreamingMovies",
-    "Contract",
-    "PaperlessBilling",
-    "PaymentMethod",
+NUMERIC_FEATURES = [
+    "store_id", "sku_id", "day_of_week", "month", "is_holiday",
+    "price", "promotion", "temperature", "inventory_level",
+    "competitor_price", "store_traffic",
 ]
+CATEGORICAL_FEATURES = []
 
 
 def _features_columns(df: pd.DataFrame) -> list[str]:
-    return [c for c in NUMERIC_FEATURES + CATEGORICAL_FEATURES if c in df.columns]
-
-
-def _evidently_report(reference: pd.DataFrame, current: pd.DataFrame) -> dict:
-    from evidently import ColumnMapping
-    from evidently.metric_preset import DataDriftPreset
-    from evidently.metrics import ColumnDriftMetric
-    from evidently.report import Report
-
-    features = _features_columns(reference)
-    column_mapping = ColumnMapping(
-        prediction="prediction" if "prediction" in reference.columns else None,
-        target="label" if "label" in reference.columns else None,
-        numerical_features=[c for c in NUMERIC_FEATURES if c in features],
-        categorical_features=[c for c in CATEGORICAL_FEATURES if c in features],
-    )
-
-    metrics: list = [DataDriftPreset()]
-    if "prediction" in reference.columns:
-        metrics.append(ColumnDriftMetric("prediction"))
-
-    report = Report(metrics=metrics)
-    report.run(reference_data=reference, current_data=current, column_mapping=column_mapping)
-
-    return report.as_dict()
-
-
-def _extract_drift_score(payload: dict) -> tuple[float, dict]:
-    drifted = 0
-    total = 0
-    per_column: dict[str, dict] = {}
-
-    def walk(node: dict) -> None:
-        nonlocal drifted, total
-        result = node.get("result", {})
-        if isinstance(result, dict):
-            by_column = result.get("drift_by_columns") or result.get("drift_by_column")
-            if isinstance(by_column, dict):
-                for col, info in by_column.items():
-                    detected = bool(info.get("drift_detected", False))
-                    stats = info.get("drift_stat_test", {})
-                    per_column[col] = {
-                        "drift_detected": detected,
-                        "test": stats.get("drift_stat_test_name", stats.get("name", "unknown")),
-                        "score": stats.get("drift_score"),
-                    }
-                    drifted += int(detected)
-                    total += 1
-            if "number_of_drifted_columns" in result and "number_of_columns" in result:
-                drifted = int(result["number_of_drifted_columns"])
-                total = int(result["number_of_columns"])
-        for value in node.values():
-            if isinstance(value, dict):
-                walk(value)
-        for value in node.values():
-            if isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict):
-                        walk(item)
-
-    walk(payload)
-    score = drifted / total if total else 0.0
-    return score, per_column
+    return [c for c in NUMERIC_FEATURES if c in df.columns]
 
 
 def _ks_fallback(reference: pd.DataFrame, current: pd.DataFrame) -> tuple[float, dict]:
@@ -154,20 +71,10 @@ def detect_drift(
     reference = pd.read_csv(reference_path)
     current = pd.read_csv(current_path)
 
-    try:
-        payload = _evidently_report(reference, current)
-        engine = "evidently"
-    except Exception:  # noqa: BLE001
-        payload = {}
-        engine = "scipy-fallback"
-
-    drift_score, per_column = _extract_drift_score(payload) if payload else _ks_fallback(reference, current)
-    if not per_column and engine == "evidently":
-        drift_score, per_column = _ks_fallback(reference, current)
-        engine = "scipy-fallback"
+    drift_score, per_column = _ks_fallback(reference, current)
 
     report = {
-        "engine": engine,
+        "engine": "scipy-fallback",
         "drift_score": drift_score,
         "threshold": threshold,
         "drift_detected": drift_score > threshold,
@@ -181,25 +88,6 @@ def detect_drift(
     output_dir.mkdir(parents=True, exist_ok=True)
     with (output_dir / "drift_report.json").open("w") as fh:
         json.dump(report, fh, indent=2, default=str)
-
-    if engine == "evidently":
-        try:
-            from evidently import ColumnMapping
-            from evidently.metric_preset import DataDriftPreset
-            from evidently.report import Report
-
-            html_report = Report(metrics=[DataDriftPreset()])
-            html_report.run(
-                reference_data=reference,
-                current_data=current,
-                column_mapping=ColumnMapping(
-                    prediction="prediction" if "prediction" in reference.columns else None,
-                    target="label" if "label" in reference.columns else None,
-                ),
-            )
-            html_report.save_html(str(output_dir / "drift_report.html"))
-        except Exception:  # noqa: BLE001  # nosec B110 - html report is best effort
-            pass
 
     return report
 

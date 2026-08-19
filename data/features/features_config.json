@@ -1,140 +1,74 @@
 {
   "numeric_features": [
-    "Tenure",
-    "MonthlyCharges",
-    "TotalCharges"
+    "store_id",
+    "sku_id",
+    "day_of_week",
+    "month",
+    "is_holiday",
+    "price",
+    "promotion",
+    "temperature",
+    "inventory_level",
+    "competitor_price",
+    "store_traffic"
   ],
-  "categorical_features": [
-    "Gender",
-    "SeniorCitizen",
-    "Partner",
-    "Dependents",
-    "PhoneService",
-    "MultipleLines",
-    "InternetService",
-    "OnlineSecurity",
-    "OnlineBackup",
-    "DeviceProtection",
-    "TechSupport",
-    "StreamingTV",
-    "StreamingMovies",
-    "Contract",
-    "PaperlessBilling",
-    "PaymentMethod"
-  ],
-  "category_mappings": {
-    "Gender": {
-      "Female": 0,
-      "Male": 1
-    },
-    "SeniorCitizen": {
-      "0": 0,
-      "1": 1
-    },
-    "Partner": {
-      "No": 0,
-      "Yes": 1
-    },
-    "Dependents": {
-      "No": 0,
-      "Yes": 1
-    },
-    "PhoneService": {
-      "No": 0,
-      "Yes": 1
-    },
-    "MultipleLines": {
-      "No": 0,
-      "No phone service": 1,
-      "Yes": 2
-    },
-    "InternetService": {
-      "DSL": 0,
-      "Fiber optic": 1,
-      "No": 2
-    },
-    "OnlineSecurity": {
-      "No": 0,
-      "No internet service": 1,
-      "Yes": 2
-    },
-    "OnlineBackup": {
-      "No": 0,
-      "No internet service": 1,
-      "Yes": 2
-    },
-    "DeviceProtection": {
-      "No": 0,
-      "No internet service": 1,
-      "Yes": 2
-    },
-    "TechSupport": {
-      "No": 0,
-      "No internet service": 1,
-      "Yes": 2
-    },
-    "StreamingTV": {
-      "No": 0,
-      "No internet service": 1,
-      "Yes": 2
-    },
-    "StreamingMovies": {
-      "No": 0,
-      "No internet service": 1,
-      "Yes": 2
-    },
-    "Contract": {
-      "Month-to-month": 0,
-      "One year": 1,
-      "Two year": 2
-    },
-    "PaperlessBilling": {
-      "No": 0,
-      "Yes": 1
-    },
-    "PaymentMethod": {
-      "Bank transfer (automatic)": 0,
-      "Credit card (automatic)": 1,
-      "Electronic check": 2,
-      "Mailed check": 3
-    }
-  },
   "numeric_stats": {
-    "Tenure": {
-      "mean": 36.59428571428571,
-      "std": 20.87232539385439
+    "store_id": {
+      "mean": 15.4862,
+      "std": 8.661233720434982
     },
-    "MonthlyCharges": {
-      "mean": 68.16176142857142,
-      "std": 28.751493781271822
+    "sku_id": {
+      "mean": 50.52852,
+      "std": 28.829787834973743
     },
-    "TotalCharges": {
-      "mean": 2500.80425,
-      "std": 1877.5490796834451
+    "day_of_week": {
+      "mean": 3.00474,
+      "std": 2.003406482069977
+    },
+    "month": {
+      "mean": 5.53336,
+      "std": 3.457641842412253
+    },
+    "is_holiday": {
+      "mean": 0.0561,
+      "std": 0.23011473225328272
+    },
+    "price": {
+      "mean": 77.43639,
+      "std": 41.8601889473029
+    },
+    "promotion": {
+      "mean": 0.50034,
+      "std": 0.4999998843999866
+    },
+    "temperature": {
+      "mean": 66.96861,
+      "std": 18.985599397119387
+    },
+    "inventory_level": {
+      "mean": 255.1794,
+      "std": 141.48404989835427
+    },
+    "competitor_price": {
+      "mean": 81.26442140000002,
+      "std": 45.680805292170824
+    },
+    "store_traffic": {
+      "mean": 1024.6487,
+      "std": 561.0782169789787
     }
   },
   "feature_order": [
-    "Tenure",
-    "MonthlyCharges",
-    "TotalCharges",
-    "charges_per_tenure",
-    "tenure_years",
-    "num_services",
-    "Gender",
-    "SeniorCitizen",
-    "Partner",
-    "Dependents",
-    "PhoneService",
-    "MultipleLines",
-    "InternetService",
-    "OnlineSecurity",
-    "OnlineBackup",
-    "DeviceProtection",
-    "TechSupport",
-    "StreamingTV",
-    "StreamingMovies",
-    "Contract",
-    "PaperlessBilling",
-    "PaymentMethod"
+    "store_id",
+    "sku_id",
+    "day_of_week",
+    "month",
+    "is_holiday",
+    "price",
+    "promotion",
+    "temperature",
+    "inventory_level",
+    "competitor_price",
+    "store_traffic"
   ]
 }

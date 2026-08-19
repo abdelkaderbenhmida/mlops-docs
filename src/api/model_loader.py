@@ -1,12 +1,8 @@
-"""Model loading for the inference API.
+"""Model loading for the demand forecasting inference API.
 
 Loads the production model once at startup from the MLflow Model Registry
-(`models:/<MODEL_NAME>/Production`) and applies the same fitted feature
-transformer that was used at training time. Falls back to an explicit model
-URI or a local pickle when the registry is unreachable (local dev).
-
-A periodic reload can be enabled with RELOAD_INTERVAL (seconds) so registry
-promotions are picked up without a full restart.
+and applies the same fitted feature transformer that was used at training time.
+Falls back to a local pickle when the registry is unreachable.
 """
 
 from __future__ import annotations
@@ -26,7 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "data" / "features" / "features_config.json"
 DEFAULT_LOCAL_MODEL = PROJECT_ROOT / "models" / "model.pkl"
 
-MODEL_NAME = os.environ.get("MLFLOW_MODEL_NAME", "churn_model")
+MODEL_NAME = os.environ.get("MLFLOW_MODEL_NAME", "demand_model")
 
 
 class ModelBundle:
@@ -44,9 +40,9 @@ class ModelBundle:
         self.version = version
         self.run_id = run_id
 
-    def predict_proba(self, df: pd.DataFrame) -> pd.DataFrame:
+    def predict(self, df: pd.DataFrame) -> list[float]:
         features = self.transformer.transform(df)
-        return self.model.predict_proba(features)
+        return self.model.predict(features).tolist()
 
 
 class ModelLoader:
@@ -73,22 +69,20 @@ class ModelLoader:
         config = json.loads(self.config_path.read_text())
         transformer = FeatureTransformer.from_config(config)
 
-        registry_uri = f"models:/{self.model_name}/Production"
         explicit_uri = os.environ.get("MLFLOW_MODEL_URI")
         if explicit_uri:
             try:
                 import mlflow
-
-                mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlruns/mlflow.db"))
+                mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "file:///tmp/p4mlruns"))
                 model = mlflow.sklearn.load_model(explicit_uri)
                 return ModelBundle(model, transformer, self.model_name, explicit_uri, None), explicit_uri, None
-            except Exception:  # noqa: BLE001  # nosec B110 - fallback to registry/local
+            except Exception:  # noqa: BLE001
                 pass
 
+        registry_uri = f"models:/{self.model_name}/Production"
         try:
             import mlflow
-
-            mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlruns/mlflow.db"))
+            mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "file:///tmp/p4mlruns"))
             client = mlflow.tracking.MlflowClient()
             model = mlflow.sklearn.load_model(registry_uri)
             version = client.get_latest_versions(self.model_name, stages=["Production"])[0]
@@ -97,7 +91,7 @@ class ModelLoader:
                 str(version.version),
                 version.run_id,
             )
-        except Exception:  # noqa: BLE001  # nosec B110 - fallback to local pickle
+        except Exception:  # noqa: BLE001
             pass
 
         if DEFAULT_LOCAL_MODEL.exists():

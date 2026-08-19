@@ -1,8 +1,8 @@
-"""Prometheus instrumentation for the FastAPI application.
+"""Prometheus instrumentation for the demand forecasting API.
 
 Exposes:
-- request count / latency histograms per endpoint and status (instrumentator)
-- prediction value histogram (feeds the model drift dashboards)
+- request count / latency histograms per endpoint
+- prediction value histogram (feeds drift dashboards)
 - live model version gauge
 """
 
@@ -13,8 +13,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 MODEL_PREDICTION_VALUE = Histogram(
     "model_prediction_value",
-    "Distribution of predicted churn probabilities",
-    buckets=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+    "Distribution of predicted units_sold",
+    buckets=(0, 5, 10, 15, 20, 30, 40, 50, 75, 100, 150),
 )
 
 PREDICTIONS_TOTAL = Gauge(
@@ -40,8 +40,8 @@ def setup_metrics(app) -> Instrumentator:
     return instrumentator
 
 
-def record_prediction(probability: float, model_version: str) -> None:
-    MODEL_PREDICTION_VALUE.observe(probability)
+def record_prediction(predicted_units: float, model_version: str) -> None:
+    MODEL_PREDICTION_VALUE.observe(predicted_units)
     PREDICTIONS_TOTAL.labels(model_version=model_version).inc()
 
 

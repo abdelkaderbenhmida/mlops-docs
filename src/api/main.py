@@ -1,10 +1,11 @@
-"""FastAPI inference service for the churn model.
+"""FastAPI inference service for the demand forecasting model.
 
 Endpoints:
 - POST /predict        single or batch prediction
-- GET  /health         liveness/readiness probe for Kubernetes
+- GET  /health         liveness/readiness probe
 - GET  /metrics        Prometheus metrics
 - GET  /model-info     metadata of the loaded model
+- GET  /               serves the UI dashboard
 """
 
 from __future__ import annotations
@@ -13,27 +14,29 @@ import json
 import logging
 from pathlib import Path
 
-import numpy as np
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 
 from src.api import metrics
 from src.api.model_loader import loader
 from src.api.schemas import (
-    ChurnPredictionRequest,
+    DemandPredictionRequest,
     HealthResponse,
     ModelInfoResponse,
     PredictionRequest,
     PredictionResponse,
     PredictionResult,
+    _demand_bucket,
 )
 
 logger = logging.getLogger("mlops-api")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PRODUCTION_REPORT = PROJECT_ROOT / "models" / "evaluation" / "production_report.json"
+UI_DIR = PROJECT_ROOT / "ui"
 
 app = FastAPI(
-    title="MLOps Churn Inference API",
-    description="Serves the production churn model from the MLflow Model Registry.",
+    title="MLOps Demand Forecasting API",
+    description="Serves the production demand forecasting model from the MLflow Model Registry.",
     version="1.0.0",
 )
 
@@ -71,18 +74,19 @@ def model_info() -> ModelInfoResponse:
     )
 
 
-def _predict_one(request: ChurnPredictionRequest) -> PredictionResponse:
+def _predict_one(request: DemandPredictionRequest) -> PredictionResponse:
     bundle = loader.get_bundle()
     df = request.to_dataframe()
     try:
-        probabilities = np.asarray(bundle.predict_proba(df))[:, 1]
+        predictions = bundle.predict(df)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"prediction failed: {exc}") from exc
-    probability = float(probabilities[0])
-    metrics.record_prediction(probability, bundle.version)
+    predicted_units = int(round(predictions[0]))
+    bucket = _demand_bucket(predicted_units)
+    metrics.record_prediction(float(predicted_units), bundle.version)
     return PredictionResponse(
-        prediction=int(probability >= 0.5),
-        probability=probability,
+        predicted_units=predicted_units,
+        demand_bucket=bucket,
         model_name=bundle.model_name,
         model_version=bundle.version,
     )
@@ -95,6 +99,14 @@ def predict(payload: PredictionRequest) -> PredictionResult:
             raise HTTPException(status_code=422, detail="empty prediction batch")
         return [_predict_one(request) for request in payload]
     return _predict_one(payload)
+
+
+@app.get("/", tags=["ui"])
+def serve_ui():
+    index_path = UI_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    raise HTTPException(status_code=404, detail="UI not found")
 
 
 metrics.setup_metrics(app)

@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demand Forecasting — Retail Supply Chain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --primary:#334155;--accent:#059669;--bg:#F8FAFC;--fg:#0F172A;--card:#FFFFFF;
+  --muted:#F2F3F4;--muted-fg:#475569;--border:#E6E8EA;--destructive:#DC2626;
+  --radius:8px;--shadow:0 1px 3px rgba(15,23,42,.06);--shadow-lg:0 8px 24px rgba(15,23,42,.10);
+  --side-w:240px;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Fira Sans',sans-serif;background:var(--bg);color:var(--fg);line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+a{color:var(--accent);text-decoration:none;transition:color var(--t)}
+a:hover{color:#047857}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+::selection{background:rgba(5,150,105,.18)}
+
+/* ---------- layout ---------- */
+.app{display:flex;min-height:100vh}
+.sidebar{
+  position:fixed;inset:0 auto 0 0;width:var(--side-w);background:var(--primary);color:#E2E8F0;
+  display:flex;flex-direction:column;z-index:60;transition:transform .25s ease;
+}
+.main{flex:1;margin-left:var(--side-w);display:flex;flex-direction:column;min-width:0}
+.topbar{
+  position:sticky;top:0;height:60px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 24px;z-index:40;
+}
+.menu-btn{display:none}
+.page{display:none;padding:24px;width:100%;max-width:1440px;margin:0 auto}
+.page.active{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:55;opacity:0;pointer-events:none;transition:opacity .25s ease}
+.backdrop.open{opacity:1;pointer-events:auto}
+
+/* ---------- sidebar ---------- */
+.brand{display:flex;align-items:center;gap:10px;padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand-mark{width:34px;height:34px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.brand-name{font-size:14px;font-weight:600;color:#fff;line-height:1.2}
+.brand-sub{font-size:11px;color:#94A3B8}
+.nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nav a{
+  display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:6px;
+  color:#CBD5E1;font-size:13px;font-weight:500;cursor:pointer;transition:background var(--t),color var(--t);
+}
+.nav a svg{width:17px;height:17px;flex:none;opacity:.85}
+.nav a:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav a.active{background:var(--accent);color:#fff}
+.nav a.active svg{opacity:1}
+.side-foot{padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#94A3B8}
+.side-status{display:flex;align-items:center;gap:8px;margin-bottom:6px;color:#CBD5E1;font-size:12px}
+
+/* ---------- topbar ---------- */
+.page-title{font-size:16px;font-weight:600}
+.top-status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted-fg);background:var(--muted);padding:6px 12px;border-radius:20px}
+.dot{width:8px;height:8px;border-radius:50%;background:#94A3B8;flex:none}
+.dot.ok{background:#22C55E}.dot.bad{background:var(--destructive)}
+.icon-btn{
+  width:38px;height:38px;border:1px solid var(--border);background:var(--card);border-radius:8px;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted-fg);
+  transition:background var(--t),color var(--t),border-color var(--t);
+}
+.icon-btn:hover{background:var(--muted);color:var(--fg)}
+
+/* ---------- cards ---------- */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);transition:box-shadow .2s ease}
+.card:hover{box-shadow:var(--shadow-lg)}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}
+.card-head h2{font-size:14px;font-weight:600}
+.card-hint{font-size:11px;color:var(--muted-fg)}
+.grid{display:grid;gap:16px}
+.kpi-grid{display:grid;gap:16px;grid-template-columns:repeat(4,1fr);margin-bottom:16px}
+.kpi{padding:18px 20px;position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--accent);opacity:.85}
+.kpi-label{font-size:11px;color:var(--muted-fg);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px}
+.kpi-value{font-family:'Fira Code',monospace;font-size:26px;font-weight:700;letter-spacing:-.02em}
+.kpi-sub{font-size:12px;color:var(--muted-fg);margin-top:4px}
+.kpi-grid.two{grid-template-columns:repeat(2,1fr)}
+.charts-grid{display:grid;gap:16px;grid-template-columns:1fr 1fr}
+.chart-card{padding:20px}
+.chart-wrap{position:relative;height:260px}
+.chart-wrap.tall{height:300px}
+.chart-empty{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:13px;color:var(--muted-fg);background:rgba(248,250,252,.7);
+}
+
+/* ---------- tables ---------- */
+.table-card{padding:20px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th{
+  text-align:left;padding:10px 12px;background:var(--muted);color:var(--muted-fg);
+  font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  border-bottom:2px solid var(--border);white-space:nowrap;cursor:default;
+}
+td{padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{transition:background var(--t)}
+tbody tr:hover{background:var(--muted)}
+td.num{font-family:'Fira Code',monospace;font-weight:500}
+td strong{font-family:'Fira Code',monospace}
+.empty-state{display:none;padding:40px;text-align:center;color:var(--muted-fg);font-size:13px}
+.empty-state.show{display:block}
+.muted-cell{color:var(--muted-fg)}
+
+/* ---------- badges ---------- */
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap}
+.b-low{background:#DCFCE7;color:#166534}
+.b-medium{background:#FEF9C3;color:#854D0E}
+.b-high{background:#FFEDD5;color:#9A3412}
+.b-very_high{background:#FECACA;color:#991B1B}
+.b-ok{background:#DCFCE7;color:#166534}
+.b-warn{background:#FEF9C3;color:#854D0E}
+.b-urgent{background:#FECACA;color:#991B1B}
+.b-info{background:#E0F2FE;color:#075985}
+.b-result{background:var(--accent);color:#fff}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 22px;
+  border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;transition:all var(--t);
+}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn-accent{background:var(--accent);color:#fff}
+.btn-accent:hover:not(:disabled){background:#047857;transform:translateY(-1px);box-shadow:var(--shadow)}
+.btn-ghost{background:var(--muted);color:var(--fg)}
+.btn-ghost:hover{background:#E4E6E7}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn svg{width:16px;height:16px}
+
+/* ---------- forms ---------- */
+.form-card{padding:20px}
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:var(--muted-fg);font-weight:500}
+.field input,.field select{
+  padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);
+  font-family:'Fira Code',monospace;font-size:13px;color:var(--fg);transition:border-color var(--t),box-shadow var(--t);cursor:pointer;
+}
+.field input:focus,.field select:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(5,150,105,.15);background:var(--card);
+}
+.form-actions{display:flex;align-items:center;gap:14px;margin-top:18px}
+.loading{display:none;align-items:center;gap:8px;font-size:13px;color:var(--muted-fg)}
+.loading.show{display:inline-flex}
+.spinner{width:15px;height:15px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- result panel ---------- */
+.page-grid{display:grid;gap:16px;grid-template-columns:1.25fr .85fr;align-items:start}
+.result-card{padding:20px;border-top:3px solid var(--accent)}
+.result-card.b-low{border-top-color:#10B981}
+.result-card.b-medium{border-top-color:#EAB308}
+.result-card.b-high{border-top-color:#F97316}
+.result-card.b-very_high{border-top-color:var(--destructive)}
+.result-big{display:flex;align-items:baseline;gap:10px;margin:6px 0 16px}
+.pred-value{font-family:'Fira Code',monospace;font-size:44px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.pred-unit{font-size:13px;color:var(--muted-fg)}
+.result-rows{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.result-rows>div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:10px;border-bottom:1px dashed var(--border)}
+.result-rows dt{font-size:12px;color:var(--muted-fg)}
+.result-rows dd{font-size:14px;font-weight:600;font-family:'Fira Code',monospace}
+.result-notes{background:var(--muted);border-radius:6px;padding:12px 14px;margin-bottom:16px}
+.result-notes h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-fg);margin-bottom:8px}
+.result-notes ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.result-notes li{font-size:12.5px;display:flex;gap:8px;align-items:flex-start}
+.result-notes li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:6px;flex:none}
+.result-notes li.neg::before{background:var(--destructive)}
+
+/* ---------- dashboard feed ---------- */
+.feed{display:flex;flex-direction:column}
+.feed-item{
+  display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);
+  transition:background var(--t);
+}
+.feed-item:last-child{border-bottom:none}
+.feed-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.feed-id{font-size:13px;font-weight:600;font-family:'Fira Code',monospace}
+.feed-time{font-size:11px;color:var(--muted-fg)}
+.feed-val{margin-left:auto;font-family:'Fira Code',monospace;font-weight:700;font-size:14px}
+.feed .badge{margin-left:4px}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.search{position:relative;display:flex;align-items:center}
+.search svg{position:absolute;left:10px;width:14px;height:14px;color:var(--muted-fg);pointer-events:none}
+.search input{padding:8px 12px 8px 32px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-family:'Fira Code',monospace;font-size:12.5px;color:var(--fg);width:230px;transition:border-color var(--t),box-shadow var(--t)}
+.search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(5,150,105,.15);background:var(--card)}
+.select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font-size:12.5px;color:var(--fg);font-family:inherit;cursor:pointer}
+.select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(5,150,105,.15)}
+
+/* ---------- inventory ---------- */
+.alert-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:20px;font-size:12.5px;font-weight:600;cursor:default}
+.chip svg{width:14px;height:14px}
+.chip-ok{background:#DCFCE7;color:#166534}
+.chip-warn{background:#FEF9C3;color:#854D0E}
+.chip-urgent{background:#FECACA;color:#991B1B}
+.params-table td:first-child{color:var(--muted-fg);font-weight:500;width:45%}
+.params-table td{font-family:'Fira Code',monospace}
+
+footer{padding:20px 24px;text-align:center;color:var(--muted-fg);font-size:12px;border-top:1px solid var(--border);background:var(--card)}
+
+/* ---------- responsive ---------- */
+@media (max-width:1100px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .charts-grid{grid-template-columns:1fr}
+  .page-grid{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:768px){
+  .sidebar{transform:translateX(-100%);box-shadow:none}
+  .sidebar.open{transform:none;box-shadow:0 0 40px rgba(15,23,42,.35)}
+  .main{margin-left:0}
+  .menu-btn{display:inline-flex}
+  .topbar{padding:0 16px}
+  .page{padding:16px}
+}
+@media (max-width:520px){
+  .kpi-grid{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+  .search input{width:100%}
+  .toolbar{width:100%}
+  .toolbar .search{flex:1}
+  .pred-value{font-size:36px}
+  .card-head{flex-direction:column;align-items:flex-start;gap:4px}
+  .top-status span.tx{display:none}
+  .top-status{background:none;padding:0}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Demand Forecasting</div>
+        <div class="brand-sub">Retail Supply Chain</div>
+      </div>
+    </div>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#/dashboard" data-route="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        Dashboard
+      </a>
+      <a href="#/forecast" data-route="forecast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        Demand Forecast
+      </a>
+      <a href="#/seasonality" data-route="seasonality">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="8" y1="14" x2="8" y2="18"/><line x1="16" y1="14" x2="16" y2="18"/></svg>
+        Seasonality
+      </a>
+      <a href="#/inventory" data-route="inventory">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        Inventory Planner
+      </a>
+      <a href="#/history" data-route="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        History
+      </a>
+      <a href="#/model" data-route="model">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+        Model Info
+      </a>
+    </nav>
+    <div class="side-foot">
+      <div class="side-status"><span class="dot" id="sideDot"></span><span id="sideStatus">Connecting…</span></div>
+      <div>RandomForestRegressor · v1.0.0</div>
+    </div>
+  </aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="Toggle navigation">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <h1 class="page-title" id="pageTitle">Dashboard</h1>
+      <div class="top-status"><span class="dot" id="statusDot"></span><span class="tx" id="statusText">Connecting…</span></div>
+    </header>
+
+    <main>
+      <!-- ============ DASHBOARD ============ -->
+      <section class="page" id="page-dashboard">
+        <div class="kpi-grid">
+          <div class="card kpi"><div class="kpi-label">Total Forecasts</div><div class="kpi-value" id="kTotal">—</div><div class="kpi-sub">since server start</div></div>
+          <div class="card kpi"><div class="kpi-label">Avg Demand</div><div class="kpi-value" id="kAvg">—</div><div class="kpi-sub">units per day</div></div>
+          <div class="card kpi"><div class="kpi-label">High Demand</div><div class="kpi-value" id="kHigh">—</div><div class="kpi-sub">high + very high buckets</div></div>
+          <div class="card kpi"><div class="kpi-label">Max Forecast</div><div class="kpi-value" id="kMax">—</div><div class="kpi-sub">peak predicted units</div></div>
+        </div>
+        <div class="charts-grid">
+          <div class="card chart-card">
+            <div class="card-head"><h2>Bucket Distribution</h2><span class="card-hint">share by demand bucket</span></div>
+            <div class="chart-wrap"><canvas id="c-dashboard-bucket"></canvas><div class="chart-empty" id="e-dashboard-bucket">No forecasts yet</div></div>
+          </div>
+          <div class="card chart-card">
+            <div class="card-head"><h2>Forecasts Over Time</h2><span class="card-hint">recent predictions</span></div>
+            <div class="chart-wrap"><canvas id="c-dashboard-line"></canvas><div class="chart-empty" id="e-dashboard-line">No forecasts yet</div></div>
+          </div>
+          <div class="card chart-card">
+            <div class="card-head"><h2>Demand by Day of Week</h2><span class="card-hint">predicted units</span></div>
+            <div class="chart-wrap"><canvas id="c-dashboard-dow"></canvas><div class="chart-empty" id="e-dashboard-dow">No forecasts yet</div></div>
+          </div>
+          <div class="card chart-card">
+            <div class="card-head"><h2>Recent Forecasts</h2><a href="#/history">View all</a></div>
+            <div class="feed" id="feed"><div class="empty-state show" style="display:block;padding:24px">No forecasts yet — run one on the Forecast page.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ FORECAST ============ -->
+      <section class="page" id="page-forecast">
+        <div class="page-grid">
+          <div class="card form-card">
+            <div class="card-head"><h2>Prediction Inputs</h2><span class="card-hint">store, SKU &amp; demand context</span></div>
+            <form id="f" novalidate>
+              <div class="form-grid">
+                <div class="field"><label for="store_id">Store ID</label><input type="number" id="store_id" value="1" min="0" max="30"></div>
+                <div class="field"><label for="sku_id">SKU ID</label><input type="number" id="sku_id" value="1" min="0" max="100"></div>
+                <div class="field"><label for="day_of_week">Day of Week</label>
+                  <select id="day_of_week"><option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option><option value="3" selected>Thursday</option><option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option></select>
+                </div>
+                <div class="field"><label for="month">Month</label>
+                  <select id="month"><option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option><option value="4">Apr</option><option value="5">May</option><option value="6" selected>Jun</option><option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option></select>
+                </div>
+                <div class="field"><label for="is_holiday">Holiday</label>
+                  <select id="is_holiday"><option value="0">No</option><option value="1">Yes</option></select>
+                </div>
+                <div class="field"><label for="price">Price ($)</label><input type="number" id="price" value="12.99" min="0" step="0.01"></div>
+                <div class="field"><label for="promotion">Promotion</label>
+                  <select id="promotion"><option value="0">No</option><option value="1">Yes</option></select>
+                </div>
+                <div class="field"><label for="temperature">Temperature (°F)</label><input type="number" id="temperature" value="72" step="0.1"></div>
+                <div class="field"><label for="inventory_level">Inventory Level</label><input type="number" id="inventory_level" value="100" min="0"></div>
+                <div class="field"><label for="competitor_price">Competitor Price ($)</label><input type="number" id="competitor_price" value="13.50" min="0" step="0.01"></div>
+                <div class="field"><label for="store_traffic">Store Traffic</label><input type="number" id="store_traffic" value="500" min="0"></div>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-accent" id="btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+                  Run Forecast
+                </button>
+                <div class="loading" id="loading"><div class="spinner"></div> Forecasting…</div>
+              </div>
+            </form>
+          </div>
+
+          <div class="card result-card" id="resultCard" hidden>
+            <div class="card-head"><h2>Forecast Result</h2><span class="badge b-info" id="rBadge">pending</span></div>
+            <div class="result-big">
+              <div class="pred-value" id="rPred">—</div>
+              <div class="pred-unit">units / day</div>
+            </div>
+            <dl class="result-rows">
+              <div><dt>Confidence</dt><dd id="rConf">—</dd></div>
+              <div><dt>Suggested reorder</dt><dd id="rReorder">—</dd></div>
+              <div><dt>Demand bucket</dt><dd id="rBucket">—</dd></div>
+            </dl>
+            <div class="result-notes" id="rNotes">
+              <h3>Uplift factors</h3>
+              <ul id="rNotesList"></ul>
+            </div>
+            <button class="btn btn-ghost" id="rAgain">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Forecast another
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SEASONALITY ============ -->
+      <section class="page" id="page-seasonality">
+        <div class="charts-grid">
+          <div class="card chart-card">
+            <div class="card-head"><h2>Average Demand by Month</h2><span class="card-hint">seasonal pattern</span></div>
+            <div class="chart-wrap tall"><canvas id="c-season-month"></canvas><div class="chart-empty" id="e-season-month">No forecasts yet</div></div>
+          </div>
+          <div class="card chart-card">
+            <div class="card-head"><h2>Demand by Day of Week</h2><span class="card-hint">weekly pattern</span></div>
+            <div class="chart-wrap tall"><canvas id="c-season-dow"></canvas><div class="chart-empty" id="e-season-dow">No forecasts yet</div></div>
+          </div>
+          <div class="card chart-card">
+            <div class="card-head"><h2>Holiday vs Non-Holiday</h2><span class="card-hint">average predicted units</span></div>
+            <div class="chart-wrap tall"><canvas id="c-season-holiday"></canvas><div class="chart-empty" id="e-season-holiday">No forecasts yet</div></div>
+          </div>
+          <div class="card chart-card">
+            <div class="card-head"><h2>Promotion vs Non-Promotion</h2><span class="card-hint">share of predicted units</span></div>
+            <div class="chart-wrap tall"><canvas id="c-season-promo"></canvas><div class="chart-empty" id="e-season-promo">No forecasts yet</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ INVENTORY ============ -->
+      <section class="page" id="page-inventory">
+        <div class="alert-strip" id="invAlerts"></div>
+        <div class="card table-card">
+          <div class="card-head"><h2>Replenishment Plan</h2><span class="card-hint" id="invCount">—</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>Store</th><th>SKU</th><th>Forecast (units)</th><th>Inventory on hand</th><th>Suggested order</th><th>Restock status</th></tr></thead>
+              <tbody id="invBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="invEmpty">No forecasts yet — run one on the Forecast page to build the plan.</div>
+        </div>
+      </section>
+
+      <!-- ============ HISTORY ============ -->
+      <section class="page" id="page-history">
+        <div class="card table-card">
+          <div class="card-head">
+            <h2>Prediction History</h2>
+            <div class="toolbar">
+              <div class="search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="hSearch" placeholder="Search store, SKU, month…" aria-label="Search history">
+              </div>
+              <select class="select" id="hBucket" aria-label="Filter by bucket">
+                <option value="">All buckets</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="very_high">very_high</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>Store</th><th>SKU</th><th>Month</th><th>Holiday</th><th>Promo</th><th>Price</th><th>Forecast</th><th>Bucket</th><th>Latency (ms)</th></tr></thead>
+              <tbody id="hBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="hEmpty">No forecasts yet — run one on the Forecast page.</div>
+        </div>
+      </section>
+
+      <!-- ============ MODEL ============ -->
+      <section class="page" id="page-model">
+        <div class="kpi-grid two">
+          <div class="card kpi"><div class="kpi-label">R² Score</div><div class="kpi-value" id="mR2">—</div><div class="kpi-sub">coefficient of determination, test split</div></div>
+          <div class="card kpi"><div class="kpi-label">Mean Absolute Error</div><div class="kpi-value" id="mMae">—</div><div class="kpi-sub">units, 20% holdout</div></div>
+        </div>
+        <div class="charts-grid">
+          <div class="card chart-card">
+            <div class="card-head"><h2>Feature Importance</h2><span class="card-hint">Gini-based, normalised</span></div>
+            <div class="chart-wrap tall"><canvas id="c-model-fi"></canvas><div class="chart-empty" id="e-model-fi">Model data unavailable</div></div>
+          </div>
+          <div class="card chart-card">
+            <div class="card-head"><h2>Model Parameters</h2><span class="card-hint">training configuration</span></div>
+            <div class="table-wrap">
+              <table class="params-table">
+                <tbody>
+                  <tr><td>Algorithm</td><td id="pModel">—</td></tr>
+                  <tr><td>Estimators</td><td id="pEstimators">—</td></tr>
+                  <tr><td>Max depth</td><td id="pDepth">—</td></tr>
+                  <tr><td>Features</td><td id="pFeatures">—</td></tr>
+                  <tr><td>Training samples</td><td>30,000</td></tr>
+                  <tr><td>Test split</td><td>20% (6,000)</td></tr>
+                  <tr><td>Random seed</td><td>42</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>Demand Forecasting Platform &middot; MLOps for Retail Supply Chain</footer>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const el = id => document.getElementById(id);
+
+const ROUTES = {
+  dashboard: "Dashboard",
+  forecast: "Demand Forecast",
+  seasonality: "Seasonality Analytics",
+  inventory: "Inventory Planner",
+  history: "History",
+  model: "Model Info",
+};
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const BUCKETS = ["low","medium","high","very_high"];
+const BUCKET_COLORS = { low:"#10B981", medium:"#EAB308", high:"#F97316", very_high:"#DC2626" };
+const CHART_COLORS = { accent:"#059669", primary:"#334155", amber:"#D97706", red:"#DC2626", blue:"#3B82F6", slate:"#94A3B8" };
+
+let HIST = [];
+let charts = {};
+let lastPredict = {};
+
+Chart.defaults.font.family = "'Fira Sans', sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = "#475569";
+Chart.defaults.borderColor = "#E6E8EA";
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.boxWidth = 8;
+Chart.defaults.plugins.tooltip.backgroundColor = "#0F172A";
+Chart.defaults.plugins.tooltip.padding = 10;
+Chart.defaults.plugins.tooltip.cornerRadius = 6;
+
+/* ---------- helpers ---------- */
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(r.status + " " + r.statusText);
+  return r.json();
+}
+function fmt(n, d = 1) {
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+function timeStr(ts) {
+  const t = new Date(ts);
+  return isNaN(t) ? ts : t.toLocaleTimeString();
+}
+function badge(b) { return '<span class="badge b-' + b + '">' + esc(b.replace("_", " ")) + "</span>"; }
+function makeChart(name, cfg) {
+  if (charts[name]) { charts[name].destroy(); delete charts[name]; }
+  charts[name] = new Chart(el("c-" + name), cfg);
+  return charts[name];
+}
+function setEmpty(name, on) {
+  const e = el("e-" + name);
+  if (e) e.style.display = on ? "flex" : "none";
+}
+
+/* ---------- routing ---------- */
+function currentRoute() {
+  const h = location.hash.replace(/^#\/?/, "");
+  return ROUTES[h] ? h : "dashboard";
+}
+function openSidebar() {
+  el("sidebar").classList.add("open");
+  el("backdrop").classList.add("open");
+}
+function closeSidebar() {
+  el("sidebar").classList.remove("open");
+  el("backdrop").classList.remove("open");
+}
+el("menuBtn").addEventListener("click", openSidebar);
+el("backdrop").addEventListener("click", closeSidebar);
+
+const renderers = {
+  dashboard: renderDashboard,
+  forecast: () => {},
+  seasonality: renderSeasonality,
+  inventory: renderInventory,
+  history: renderHistory,
+  model: renderModel,
+};
+
+function navigate() {
+  const r = currentRoute();
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === "page-" + r));
+  document.querySelectorAll(".nav a").forEach(a => a.classList.toggle("active", a.dataset.route === r));
+  el("pageTitle").textContent = ROUTES[r];
+  closeSidebar();
+  renderers[r]();
+}
+window.addEventListener("hashchange", navigate);
+
+/* ---------- health ---------- */
+async function checkHealth() {
+  let ok = false, text = "Offline";
+  try {
+    const d = await api("/health");
+    ok = d.status === "healthy";
+    text = ok ? "Healthy" : "Degraded";
+  } catch (e) { /* offline */ }
+  el("statusDot").className = "dot " + (ok ? "ok" : "bad");
+  el("statusText").textContent = text;
+  el("sideDot").className = "dot " + (ok ? "ok" : "bad");
+  el("sideStatus").textContent = text;
+}
+
+/* ---------- shared data ---------- */
+async function loadHistory(limit = 200) {
+  const d = await api("/history?limit=" + limit);
+  HIST = d.entries || [];
+  return d;
+}
+function aggregates() {
+  const m = { sum: new Array(12).fill(0), cnt: new Array(12).fill(0) };
+  const w = { sum: new Array(7).fill(0), cnt: new Array(7).fill(0) };
+  const hol = { 0: { s: 0, c: 0 }, 1: { s: 0, c: 0 } };
+  const promo = { 0: { s: 0, c: 0 }, 1: { s: 0, c: 0 } };
+  for (const e of HIST) {
+    const i = e.input || {}, u = e.result ? e.result.predicted_units : 0;
+    const mo = (i.month || 1) - 1, dw = i.day_of_week || 0;
+    m.sum[mo] += u; m.cnt[mo]++;
+    w.sum[dw] += u; w.cnt[dw]++;
+    const h = i.is_holiday ? 1 : 0; hol[h].s += u; hol[h].c++;
+    const p = i.promotion ? 1 : 0; promo[p].s += u; promo[p].c++;
+  }
+  const avg = arr => (arr.c ? arr.s / arr.c : 0);
+  return {
+    monthAvg: m.cnt.map((c, idx) => (c ? m.sum[idx] / c : 0)),
+    dowAvg: w.cnt.map((c, idx) => (c ? w.sum[idx] / c : 0)),
+    holiday: { no: avg(hol[0]), yes: avg(hol[1]) },
+    promoUnits: { no: promo[0].s, yes: promo[1].s },
+    monthCount: m.cnt.reduce((a, b) => a + b, 0),
+    dowCount: w.cnt.reduce((a, b) => a + b, 0),
+  };
+}
+
+/* ---------- dashboard ---------- */
+async function renderDashboard() {
+  try {
+    const [stats, hist] = await Promise.all([api("/stats"), api("/history?limit=100")]);
+    HIST = hist.entries || [];
+    const bd = stats.bucket_distribution || {};
+    const high = (bd.high || 0) + (bd.very_high || 0);
+
+    el("kTotal").textContent = fmt(stats.total_forecasts, 0);
+    el("kAvg").textContent = fmt(stats.avg_demand);
+    el("kHigh").textContent = fmt(high, 0);
+    el("kMax").textContent = fmt(stats.max_forecast);
+
+    const hasData = stats.total_forecasts > 0;
+
+    setEmpty("dashboard-bucket", !hasData);
+    setEmpty("dashboard-line", !hasData);
+    setEmpty("dashboard-dow", !hasData);
+    if (hasData) {
+      makeChart("dashboard-bucket", {
+        type: "doughnut",
+        data: {
+          labels: BUCKETS.map(b => b.replace("_", " ")),
+          datasets: [{ data: BUCKETS.map(b => bd[b] || 0), backgroundColor: BUCKETS.map(b => BUCKET_COLORS[b]), borderWidth: 2, borderColor: "#fff", hoverOffset: 6 }],
+        },
+        options: { plugins: { legend: { position: "bottom" } }, cutout: "62%" },
+      });
+
+      const series = HIST.slice(0, 50).reverse();
+      makeChart("dashboard-line", {
+        type: "line",
+        data: {
+          labels: series.map(e => timeStr(e.timestamp)),
+          datasets: [{ label: "Predicted units", data: series.map(e => e.result.predicted_units), borderColor: CHART_COLORS.accent, backgroundColor: "rgba(5,150,105,.12)", fill: true, tension: .3, pointRadius: 2, pointHoverRadius: 5, borderWidth: 2 }],
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, grid: { color: "#EEF0F2" } }, x: { ticks: { maxTicksLimit: 8 } } },
+        },
+      });
+
+      const dow = aggregates().dowAvg;
+      makeChart("dashboard-dow", {
+        type: "bar",
+        data: { labels: DAYS, datasets: [{ data: dow, backgroundColor: CHART_COLORS.primary, borderRadius: 4, maxBarThickness: 34 }] },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: "#EEF0F2" } } } },
+      });
+    }
+
+    const feed = HIST.slice(0, 6);
+    el("feed").innerHTML = feed.length
+      ? feed.map(e => {
+          const i = e.input || {};
+          return '<div class="feed-item">'
+            + '<div class="feed-main"><span class="feed-id">Store #' + esc(i.store_id) + " / SKU #" + esc(i.sku_id) + "</span>"
+            + '<span class="feed-time">' + timeStr(e.timestamp) + "</span></div>"
+            + '<span class="feed-val">' + fmt(e.result.predicted_units) + " u</span>"
+            + badge(e.result.forecast_bucket) + "</div>";
+        }).join("")
+      : '<div class="empty-state show" style="display:block;padding:24px">No forecasts yet — run one on the Forecast page.</div>';
+  } catch (err) {
+    el("feed").innerHTML = '<div class="empty-state show" style="display:block;padding:24px">Failed to load dashboard: ' + esc(err.message) + "</div>";
+  }
+}
+
+/* ---------- forecast form ---------- */
+const FIELDS = ["store_id","sku_id","day_of_week","month","is_holiday","price","promotion","temperature","inventory_level","competitor_price","store_traffic"];
+
+el("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = el("btn"), ld = el("loading");
+  btn.disabled = true; ld.classList.add("show");
+  const body = {};
+  for (const k of FIELDS) body[k] = +el(k).value;
+  try {
+    const d = await api("/predict", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    lastPredict = { body, result: d };
+    showResult();
+  } catch (err) {
+    const card = el("resultCard");
+    card.hidden = false;
+    card.className = "card result-card b-very_high";
+    el("rPred").textContent = "Error";
+    el("rBadge").textContent = "failed";
+    el("rBadge").className = "badge b-urgent";
+    el("rConf").textContent = "—";
+    el("rReorder").textContent = "—";
+    el("rBucket").textContent = "—";
+    el("rNotesList").innerHTML = '<li>' + esc(err.message) + "</li>";
+    el("rAgain").hidden = false;
+  } finally {
+    btn.disabled = false; ld.classList.remove("show");
+  }
+});
+
+function showResult() {
+  const { body, result } = lastPredict;
+  const d = result;
+  const card = el("resultCard");
+  card.hidden = false;
+  card.className = "card result-card b-" + d.forecast_bucket;
+  el("rPred").textContent = fmt(d.predicted_units);
+  el("rBadge").textContent = d.forecast_bucket.replace("_", " ");
+  el("rBadge").className = "badge b-" + d.forecast_bucket;
+  el("rConf").textContent = d.confidence;
+  el("rReorder").textContent = Math.ceil(d.predicted_units * 1.2) + " units";
+  el("rBucket").textContent = d.forecast_bucket.replace("_", " ");
+  const notes = [];
+  if (body.is_holiday) notes.push({ t: "Holiday — demand uplift expected (+10 units base effect).", neg: false });
+  if (body.promotion) notes.push({ t: "Promotion active — uplift of ~8 units, run-time reorder recommended.", neg: false });
+  if (body.day_of_week >= 5) notes.push({ t: "Weekend day — above-baseline traffic effect (+3 units).", neg: false });
+  if (!notes.length) notes.push({ t: "Baseline conditions — no uplift factors detected.", neg: false });
+  if (body.competitor_price > body.price) notes.push({ t: "Competitor price higher than yours — price advantage supports demand.", neg: false });
+  else notes.push({ t: "Competitor price at or below yours — demand headwind possible.", neg: true });
+  el("rNotesList").innerHTML = notes.map(n => '<li class="' + (n.neg ? "neg" : "") + '">' + n.t + "</li>").join("");
+  el("rAgain").hidden = false;
+}
+el("rAgain").addEventListener("click", () => {
+  el("resultCard").hidden = true;
+  el("f").reset();
+  el("store_id").focus();
+});
+
+/* ---------- seasonality ---------- */
+async function renderSeasonality() {
+  try {
+    const d = await loadHistory(200);
+    const agg = aggregates();
+    const has = d.total > 0;
+
+    setEmpty("season-month", !has);
+    setEmpty("season-dow", !has);
+    setEmpty("season-holiday", !has);
+    setEmpty("season-promo", !has);
+    if (!has) return;
+
+    makeChart("season-month", {
+      type: "line",
+      data: { labels: MONTHS, datasets: [{ label: "Avg units", data: agg.monthAvg, borderColor: CHART_COLORS.accent, backgroundColor: "rgba(5,150,105,.12)", fill: true, tension: .35, pointRadius: 3, borderWidth: 2 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: "#EEF0F2" } } } },
+    });
+    makeChart("season-dow", {
+      type: "bar",
+      data: { labels: DAYS, datasets: [{ label: "Avg units", data: agg.dowAvg, backgroundColor: CHART_COLORS.blue, borderRadius: 4, maxBarThickness: 38 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: "#EEF0F2" } } } },
+    });
+    makeChart("season-holiday", {
+      type: "bar",
+      data: { labels: ["Non-holiday", "Holiday"], datasets: [{ label: "Avg predicted units", data: [agg.holiday.no, agg.holiday.yes], backgroundColor: [CHART_COLORS.primary, CHART_COLORS.amber], borderRadius: 4, maxBarThickness: 60 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: "#EEF0F2" } } } },
+    });
+    makeChart("season-promo", {
+      type: "doughnut",
+      data: { labels: ["Non-promotion", "Promotion"], datasets: [{ data: [agg.promoUnits.no, agg.promoUnits.yes], backgroundColor: [CHART_COLORS.slate, CHART_COLORS.accent], borderWidth: 2, borderColor: "#fff", hoverOffset: 6 }] },
+      options: { plugins: { legend: { position: "bottom" } }, cutout: "62%" },
+    });
+  } catch (err) {
+    for (const n of ["season-month","season-dow","season-holiday","season-promo"]) {
+      el("e-" + n).textContent = "Failed to load: " + err.message;
+      setEmpty(n, true);
+    }
+  }
+}
+
+/* ---------- inventory ---------- */
+async function renderInventory() {
+  try {
+    const d = await loadHistory(100);
+    const rows = HIST;
+    el("invCount").textContent = d.total + " forecasts analysed";
+    el("invBody").innerHTML = rows.map(e => {
+      const i = e.input || {};
+      const u = e.result.predicted_units;
+      const suggest = Math.ceil(u * 1.2);
+      const inv = +i.inventory_level || 0;
+      let cls = "b-ok", label = "In stock";
+      if (suggest > inv * 1.5) { cls = "b-urgent"; label = "Restock now"; }
+      else if (suggest > inv) { cls = "b-warn"; label = "Replenish soon"; }
+      return "<tr>"
+        + "<td class=\"muted-cell\">" + timeStr(e.timestamp) + "</td>"
+        + "<td class=\"num\">#" + esc(i.store_id) + "</td>"
+        + "<td class=\"num\">#" + esc(i.sku_id) + "</td>"
+        + "<td><strong>" + fmt(u) + "</strong></td>"
+        + "<td class=\"num\">" + fmt(inv, 0) + "</td>"
+        + "<td class=\"num\">" + fmt(suggest, 0) + "</td>"
+        + "<td><span class=\"badge " + cls + "\">" + label + "</span></td></tr>";
+    }).join("");
+
+    const urgent = rows.filter(e => { const i = e.input || {}; return Math.ceil(e.result.predicted_units * 1.2) > (+i.inventory_level || 0) * 1.5; }).length;
+    const warn = rows.filter(e => { const i = e.input || {}; const s = Math.ceil(e.result.predicted_units * 1.2), inv = +i.inventory_level || 0; return s > inv && s <= inv * 1.5; }).length;
+    const ok = rows.length - urgent - warn;
+
+    el("invAlerts").innerHTML =
+      '<span class="chip chip-urgent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' + urgent + " urgent restocks</span>"
+      + '<span class="chip chip-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' + warn + " replenish soon</span>"
+      + '<span class="chip chip-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + ok + " covered</span>";
+
+    el("invEmpty").classList.toggle("show", rows.length === 0);
+  } catch (err) {
+    el("invEmpty").textContent = "Failed to load: " + err.message;
+    el("invEmpty").classList.add("show");
+  }
+}
+
+/* ---------- history ---------- */
+let hQ = "", hB = "";
+el("hSearch").addEventListener("input", e => { hQ = e.target.value.toLowerCase(); renderHistoryTable(); });
+el("hBucket").addEventListener("change", e => { hB = e.target.value; renderHistoryTable(); });
+
+async function renderHistory() {
+  try {
+    await loadHistory(200);
+    el("hEmpty").classList.toggle("show", HIST.length === 0);
+    renderHistoryTable();
+  } catch (err) {
+    el("hEmpty").textContent = "Failed to load: " + err.message;
+    el("hEmpty").classList.add("show");
+  }
+}
+function renderHistoryTable() {
+  const rows = HIST.filter(e => {
+    if (hB && e.result.forecast_bucket !== hB) return false;
+    if (!hQ) return true;
+    const i = e.input || {};
+    const hay = [i.store_id, i.sku_id, MONTHS[(i.month || 1) - 1], e.result.forecast_bucket, i.is_holiday ? "yes" : "no", i.promotion ? "yes" : "no", e.result.predicted_units].join(" ").toLowerCase();
+    return hay.includes(hQ);
+  });
+  el("hBody").innerHTML = rows.map(e => {
+    const i = e.input || {};
+    return "<tr>"
+      + "<td class=\"muted-cell\">" + timeStr(e.timestamp) + "</td>"
+      + "<td class=\"num\">#" + esc(i.store_id) + "</td>"
+      + "<td class=\"num\">#" + esc(i.sku_id) + "</td>"
+      + "<td>" + MONTHS[(i.month || 1) - 1] + "</td>"
+      + "<td>" + (i.is_holiday ? "Yes" : "No") + "</td>"
+      + "<td>" + (i.promotion ? "Yes" : "No") + "</td>"
+      + "<td class=\"num\">$" + fmt(i.price) + "</td>"
+      + "<td><strong>" + fmt(e.result.predicted_units) + "</strong></td>"
+      + "<td>" + badge(e.result.forecast_bucket) + "</td>"
+      + "<td class=\"muted-cell num\">" + fmt(e.latency_ms) + "</td></tr>";
+  }).join("");
+  el("hEmpty").classList.toggle("show", rows.length === 0);
+  el("hEmpty").textContent = rows.length === 0 ? "No forecasts match your search." : "No forecasts yet.";
+}
+
+/* ---------- model info ---------- */
+async function renderModel() {
+  try {
+    const d = await api("/model-info");
+    if (!d.model_loaded) throw new Error("model not loaded");
+    el("mR2").textContent = fmt(d.r2, 4);
+    el("mMae").textContent = fmt(d.mae, 2);
+    el("pModel").textContent = d.model_name;
+    el("pEstimators").textContent = d.n_estimators;
+    el("pDepth").textContent = d.max_depth;
+    el("pFeatures").textContent = d.n_features;
+
+    setEmpty("model-fi", false);
+    makeChart("model-fi", {
+      type: "bar",
+      data: {
+        labels: d.feature_importance.map(f => f.feature.replace("_", " ")),
+        datasets: [{ label: "Importance", data: d.feature_importance.map(f => f.importance), backgroundColor: CHART_COLORS.accent, borderRadius: 4, maxBarThickness: 20 }],
+      },
+      options: {
+        indexAxis: "y",
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, grid: { color: "#EEF0F2" } }, y: { grid: { display: false } } },
+      },
+    });
+  } catch (err) {
+    el("mR2").textContent = "—"; el("mMae").textContent = "—";
+    setEmpty("model-fi", true);
+    el("e-model-fi").textContent = "Failed to load: " + err.message;
+  }
+}
+
+/* ---------- boot ---------- */
+checkHealth();
+setInterval(checkHealth, 30000);
+navigate();
+</script>
+</body>
+</html>

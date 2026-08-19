@@ -1,1 +1,1 @@
-"""features package: feature engineering pipeline."""
+"""features package: feature engineering pipeline for demand forecasting."""

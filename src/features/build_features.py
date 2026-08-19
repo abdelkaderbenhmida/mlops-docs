@@ -1,13 +1,9 @@
-"""Feature engineering: transform processed data into model features.
+"""Feature engineering for demand forecasting.
 
-Encapsulated in `FeatureTransformer` so the exact same transformations are
-applied at training time and at inference time (no training/serving skew).
-The fitted state (category mappings, numeric statistics, column order) is
-persisted as a JSON config and shipped with the model as an MLflow artifact.
-
-Outputs:
-- data/features/features.parquet       (training features + target)
-- data/features/features_config.json   (fitted transformer state)
+Transforms raw demand data into model features with a FeatureTransformer
+for train/inference parity. Outputs:
+- data/features/features.parquet
+- data/features/features_config.json
 """
 
 from __future__ import annotations
@@ -19,78 +15,48 @@ from pathlib import Path
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_INPUT = PROJECT_ROOT / "data" / "processed" / "dataset.csv"
+DEFAULT_INPUT = PROJECT_ROOT / "data" / "processed" / "demand_data.csv"
 DEFAULT_OUTPUT = PROJECT_ROOT / "data" / "features" / "features.parquet"
 DEFAULT_CONFIG = PROJECT_ROOT / "data" / "features" / "features_config.json"
 
-TARGET_COLUMN = "Churn"
-TARGET_FEATURE = "churn_target"
+TARGET_COLUMN = "units_sold"
+TARGET_FEATURE = "units_sold"
 
-NUMERIC_FEATURES = ["Tenure", "MonthlyCharges", "TotalCharges"]
-CATEGORICAL_FEATURES = [
-    "Gender",
-    "SeniorCitizen",
-    "Partner",
-    "Dependents",
-    "PhoneService",
-    "MultipleLines",
-    "InternetService",
-    "OnlineSecurity",
-    "OnlineBackup",
-    "DeviceProtection",
-    "TechSupport",
-    "StreamingTV",
-    "StreamingMovies",
-    "Contract",
-    "PaperlessBilling",
-    "PaymentMethod",
+FEATURE_ORDER = [
+    "store_id",
+    "sku_id",
+    "day_of_week",
+    "month",
+    "is_holiday",
+    "price",
+    "promotion",
+    "temperature",
+    "inventory_level",
+    "competitor_price",
+    "store_traffic",
 ]
-ENGINEERED_FEATURES = ["charges_per_tenure", "tenure_years", "num_services"]
-
-SERVICE_COLUMNS = [
-    "OnlineSecurity",
-    "OnlineBackup",
-    "DeviceProtection",
-    "TechSupport",
-    "StreamingTV",
-    "StreamingMovies",
-]
-
-FEATURE_ORDER = NUMERIC_FEATURES + ENGINEERED_FEATURES + CATEGORICAL_FEATURES
-
-
-def _engineer(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    out["charges_per_tenure"] = out["TotalCharges"] / (out["Tenure"] + 1)
-    out["tenure_years"] = out["Tenure"] / 12.0
-    out["num_services"] = sum((out[c].astype(str) == "Yes").astype(int) for c in SERVICE_COLUMNS)
-    return out
 
 
 class FeatureTransformer:
-    def __init__(self, numeric_features: list[str] | None = None, categorical_features: list[str] | None = None):
-        self.numeric_features = numeric_features or NUMERIC_FEATURES
-        self.categorical_features = categorical_features or CATEGORICAL_FEATURES
-        self.category_mappings: dict[str, dict[str, int]] = {}
+    def __init__(self, numeric_features: list[str] | None = None):
+        self.numeric_features = numeric_features or [
+            "store_id", "sku_id", "day_of_week", "month", "is_holiday",
+            "price", "promotion", "temperature", "inventory_level",
+            "competitor_price", "store_traffic",
+        ]
         self.numeric_stats: dict[str, dict[str, float]] = {}
 
     def fit(self, df: pd.DataFrame) -> FeatureTransformer:
-        data = _engineer(df)
-        for col in self.categorical_features:
-            categories = sorted(data[col].astype(str).unique())
-            self.category_mappings[col] = {cat: i for i, cat in enumerate(categories)}
         for col in self.numeric_features:
-            self.numeric_stats[col] = {"mean": float(data[col].mean()), "std": float(data[col].std(ddof=0))}
+            self.numeric_stats[col] = {
+                "mean": float(df[col].mean()),
+                "std": float(df[col].std(ddof=0)) or 1.0,
+            }
         return self
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        data = _engineer(df).copy()
-        for col in self.categorical_features:
-            mapping = self.category_mappings.get(col, {})
-            data[col] = data[col].astype(str).map(mapping).fillna(-1).astype(int)
+        data = df.copy()
         for col in self.numeric_features:
-            data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0.0).astype(float)
-        for col in ENGINEERED_FEATURES:
             data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0.0).astype(float)
         return data[FEATURE_ORDER]
 
@@ -100,16 +66,13 @@ class FeatureTransformer:
     def to_config(self) -> dict:
         return {
             "numeric_features": self.numeric_features,
-            "categorical_features": self.categorical_features,
-            "category_mappings": self.category_mappings,
             "numeric_stats": self.numeric_stats,
             "feature_order": FEATURE_ORDER,
         }
 
     @classmethod
     def from_config(cls, config: dict) -> FeatureTransformer:
-        transformer = cls(config["numeric_features"], config["categorical_features"])
-        transformer.category_mappings = config["category_mappings"]
+        transformer = cls(config["numeric_features"])
         transformer.numeric_stats = config["numeric_stats"]
         return transformer
 
@@ -127,10 +90,11 @@ def build_features(
         raise FileNotFoundError(f"Input dataset not found: {input_path}")
 
     df = pd.read_csv(input_path)
-    transformer = FeatureTransformer().fit(df)
+    transformer = FeatureTransformer()
     features = transformer.fit_transform(df)
+
     if TARGET_COLUMN in df.columns:
-        features[TARGET_FEATURE] = (df[TARGET_COLUMN].astype(str).str.lower() == "yes").astype(int)
+        features[TARGET_FEATURE] = df[TARGET_COLUMN].astype(float)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     features.to_parquet(output_path, index=False)
@@ -140,7 +104,7 @@ def build_features(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build features from processed data.")
+    parser = argparse.ArgumentParser(description="Build features from demand data.")
     parser.add_argument("--input", type=str, default=None)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--config", type=str, default=None)
