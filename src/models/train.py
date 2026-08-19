@@ -40,6 +40,7 @@ DEFAULT_CONFIG = PROJECT_ROOT / "data" / "features" / "features_config.json"
 DEFAULT_MODEL_OUTPUT = PROJECT_ROOT / "models" / "model.pkl"
 DEFAULT_METRICS = PROJECT_ROOT / "metrics.json"
 DEFAULT_REFERENCE = PROJECT_ROOT / "data" / "monitoring" / "reference.csv"
+DEFAULT_ARTIFACT_DIR = PROJECT_ROOT / "models" / "artifacts"
 MODEL_NAME = os.environ.get("MLFLOW_MODEL_NAME", "demand_model")
 DEFAULT_PARAMS = {
     "n_estimators": 300,
@@ -128,8 +129,8 @@ def train_model(
             mlflow.log_params(params)
             mlflow.log_metrics({k: v for k, v in metrics.items() if isinstance(v, float)})
 
-            importance_path = PROJECT_ROOT / "models" / "artifacts" / "feature_importances.png"
-            pred_path = PROJECT_ROOT / "models" / "artifacts" / "predictions_vs_actual.png"
+            importance_path = DEFAULT_ARTIFACT_DIR / "feature_importances.png"
+            pred_path = DEFAULT_ARTIFACT_DIR / "predictions_vs_actual.png"
             importance_path.parent.mkdir(parents=True, exist_ok=True)
             _save_feature_importances(model, list(X.columns), importance_path)
             _save_predictions_plot(y_test.values, y_pred, pred_path)
@@ -148,7 +149,7 @@ def train_model(
 
     model_output.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, model_output)
-    (PROJECT_ROOT / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    DEFAULT_METRICS.write_text(json.dumps(metrics, indent=2))
 
     reference = X_test.copy()
     reference["prediction"] = y_pred

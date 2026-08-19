@@ -79,6 +79,8 @@ class TestPipelineEndToEnd:
         monkeypatch.setattr("src.models.train.DEFAULT_DATA", self.data_dir / "features" / "features.parquet")
         monkeypatch.setattr("src.models.train.DEFAULT_CONFIG", self.data_dir / "features" / "features_config.json")
         monkeypatch.setattr("src.models.train.DEFAULT_MODEL_OUTPUT", self.models_dir / "model.pkl")
+        monkeypatch.setattr("src.models.train.DEFAULT_METRICS", self.models_dir / "metrics.json")
+        monkeypatch.setattr("src.models.train.DEFAULT_ARTIFACT_DIR", self.models_dir / "artifacts")
         monkeypatch.setattr("src.models.train.DEFAULT_REFERENCE", self.data_dir / "monitoring" / "reference.csv")
         monkeypatch.setattr("src.models.train.MODEL_NAME", "test_demand_model")
 

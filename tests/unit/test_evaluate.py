@@ -69,13 +69,15 @@ class TestEvaluate:
 
     @patch("src.models.evaluate._resolve_model")
     @patch("src.models.evaluate._load_test_set")
-    def test_evaluate_returns_report_with_gates(self, mock_load_test, mock_resolve_model):
+    def test_evaluate_returns_report_with_gates(self, mock_load_test, mock_resolve_model, tmp_path):
         """evaluate should return a report with gates_passed."""
         features, labels = self._create_test_data(100)
         mock_load_test.return_value = (features, labels)
         mock_resolve_model.return_value = self._create_mock_model(perfect=True)
 
-        report = evaluate(thresholds={"min_r2": 0.5, "max_mape": 30.0})
+        with patch("src.models.evaluate.LATEST_REPORT", tmp_path / "latest_report.json"):
+            with patch("src.models.evaluate.EVALUATION_DIR", tmp_path):
+                report = evaluate(thresholds={"min_r2": 0.5, "max_mape": 30.0})
 
         assert "metrics" in report
         assert "thresholds" in report
@@ -85,13 +87,15 @@ class TestEvaluate:
 
     @patch("src.models.evaluate._resolve_model")
     @patch("src.models.evaluate._load_test_set")
-    def test_evaluate_uses_default_thresholds(self, mock_load_test, mock_resolve_model):
+    def test_evaluate_uses_default_thresholds(self, mock_load_test, mock_resolve_model, tmp_path):
         """evaluate should use DEFAULT_THRESHOLDS when none provided."""
         features, labels = self._create_test_data(100)
         mock_load_test.return_value = (features, labels)
         mock_resolve_model.return_value = self._create_mock_model()
 
-        report = evaluate()
+        with patch("src.models.evaluate.LATEST_REPORT", tmp_path / "latest_report.json"):
+            with patch("src.models.evaluate.EVALUATION_DIR", tmp_path):
+                report = evaluate()
 
         assert report["thresholds"]["min_r2"] == DEFAULT_THRESHOLDS["min_r2"]
         assert report["thresholds"]["max_mape"] == DEFAULT_THRESHOLDS["max_mape"]
