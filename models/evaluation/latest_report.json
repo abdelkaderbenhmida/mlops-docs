@@ -2,11 +2,11 @@
   "model_uri": "local:models/model.pkl",
   "run_id": null,
   "metrics": {
-    "rmse": 25.098046630947003,
-    "mae": 21.119235515439588,
-    "r2": -0.6819497785871915,
-    "mape": 49.41651012608623,
-    "n_samples": 100
+    "rmse": 7.9017724783622825,
+    "mae": 6.260243461119835,
+    "r2": 0.7469025000631005,
+    "mape": 14.771567230051888,
+    "n_samples": 10000
   },
   "thresholds": {
     "min_r2": 0.6,
@@ -24,5 +24,5 @@
       "direction": "<="
     }
   },
-  "gates_passed": false
+  "gates_passed": true
 }

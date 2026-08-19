@@ -1,7 +1,7 @@
 {
   "engine": "scipy-fallback",
   "drift_score": 0.0,
-  "threshold": 0.5,
+  "threshold": 0.3,
   "drift_detected": false,
   "drifted_features": [],
   "per_column": {
@@ -61,7 +61,7 @@
       "score": 0.0
     }
   },
-  "reference": "/tmp/pytest-of-gadour/pytest-18/test_detect_drift_with_env_var0/reference.csv",
-  "current": "/tmp/pytest-of-gadour/pytest-18/test_detect_drift_with_env_var0/current.csv",
+  "reference": "data/monitoring/reference.csv",
+  "current": "data/monitoring/reference.csv",
   "generated_at": null
 }

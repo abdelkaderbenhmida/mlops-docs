@@ -132,7 +132,7 @@ class TestDriftDetection:
         monkeypatch.setenv("DRIFT_CURRENT", str(cur_path))
         monkeypatch.setenv("DRIFT_THRESHOLD", "0.5")
 
-        report = detect_drift()
+        report = detect_drift(output_dir=tmp_path)
 
         assert report["threshold"] == 0.5
         assert report["reference"] == str(ref_path)
