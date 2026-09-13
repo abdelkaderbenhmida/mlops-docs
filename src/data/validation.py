@@ -1,3 +1,6 @@
+# TODO: medium - Add type hints where missing
+# TODO: low - Add comprehensive docstring
+# TODO: low - Add error handling for edge cases
 """Data validation with Great Expectations.
 
 Loads a declarative expectation suite (great_expectations/expectations/dataset_suite.json)
@@ -19,7 +22,7 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SUITE = PROJECT_ROOT / "great_expectations" / "expectations" / "dataset_suite.json"
-DEFAULT_INPUT = PROJECT_ROOT / "data" / "processed" / "dataset.csv"
+DEFAULT_INPUT = PROJECT_ROOT / "data" / "processed" / "demand_data.csv"
 
 SUPPORTED_EXPECTATIONS = [
     "expect_table_row_count_to_be_between",

@@ -1,6 +1,9 @@
+# TODO: high - Add data validation before training
+# TODO: medium - Implement hyperparameter logging
+# TODO: low - Add model explainability integration
 """Model training for demand forecasting with MLflow tracking.
 
-Trains a RandomForestRegressor on the feature store snapshot:
+Trains an XGBRegressor (GPU-accelerated with CPU fallback) on the feature store snapshot:
 1. start an MLflow run and log hyperparameters
 2. train + evaluate on a held-out test split
 3. log metrics, feature importances, and model artifacts
@@ -26,14 +29,15 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
-import mlflow  # noqa: E402
+import mlflow.xgboost  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-from sklearn.ensemble import RandomForestRegressor  # noqa: E402
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score  # noqa: E402
 from sklearn.model_selection import train_test_split  # noqa: E402
+from xgboost import XGBRegressor  # noqa: E402
 
-from src.features.build_features import TARGET_FEATURE, FEATURE_ORDER  # noqa: E402
+import mlflow  # noqa: E402
+from src.features.build_features import FEATURE_ORDER, TARGET_FEATURE  # noqa: E402
 
 DEFAULT_DATA = PROJECT_ROOT / "data" / "features" / "features.parquet"
 DEFAULT_CONFIG = PROJECT_ROOT / "data" / "features" / "features_config.json"
@@ -42,14 +46,46 @@ DEFAULT_METRICS = PROJECT_ROOT / "metrics.json"
 DEFAULT_REFERENCE = PROJECT_ROOT / "data" / "monitoring" / "reference.csv"
 DEFAULT_ARTIFACT_DIR = PROJECT_ROOT / "models" / "artifacts"
 MODEL_NAME = os.environ.get("MLFLOW_MODEL_NAME", "demand_model")
+
+# Local fallback tracking store: the repository's sqlite backend (the same one
+# promote.py uses), not a temp dir that disappears on reboot. Docker/K8s
+# override this with MLFLOW_TRACKING_URI pointing at the MLflow server.
+DEFAULT_TRACKING_URI = f"sqlite:///{PROJECT_ROOT / 'mlruns' / 'mlflow.db'}"
+
 DEFAULT_PARAMS = {
     "n_estimators": 300,
     "max_depth": 15,
-    "min_samples_leaf": 5,
-    "max_features": "sqrt",
+    "learning_rate": 0.05,
+    "min_child_weight": 5,
+    "colsample_bytree": 0.9,
+    "subsample": 0.9,
     "random_state": 42,
     "n_jobs": -1,
 }
+
+
+def _to_xgb_params(params: dict) -> dict:
+    """Map sklearn-style hyperparameter names to XGBoost equivalents."""
+    out = {}
+    for key, value in params.items():
+        if key == "min_samples_leaf":
+            out["min_child_weight"] = int(value)
+        elif key == "max_features":
+            out["colsample_bytree"] = 0.8 if value == "sqrt" else float(value)
+        else:
+            out[key] = value
+    return out
+
+
+def _build_model(params: dict, *, gpu: bool) -> XGBRegressor:
+    kwargs = _to_xgb_params(params)
+    if gpu:
+        kwargs["device"] = "cuda"
+        kwargs["tree_method"] = "hist"
+    else:
+        kwargs["device"] = "cpu"
+        kwargs["tree_method"] = "hist"
+    return XGBRegressor(**kwargs)
 
 
 def _save_feature_importances(model, feature_names: list[str], path: Path) -> None:
@@ -100,8 +136,13 @@ def train_model(
     y = features[TARGET_FEATURE].astype(float)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    model = RandomForestRegressor(**params)
-    model.fit(X_train, y_train)
+    try:
+        model = _build_model(params, gpu=True)
+        model.fit(X_train, y_train)
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: GPU training unavailable ({exc}); falling back to CPU (tree_method=hist)")
+        model = _build_model(params, gpu=False)
+        model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
     rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
@@ -121,7 +162,7 @@ def train_model(
 
     run_id = None
     try:
-        mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "file:///tmp/p4mlruns"))
+        mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", DEFAULT_TRACKING_URI))
         with mlflow.start_run(run_name="demand-forecasting-training") as run:
             run_id = run.info.run_id
             mlflow.set_tag("model_name", model_name)
@@ -138,7 +179,7 @@ def train_model(
             mlflow.log_artifact(str(pred_path))
             mlflow.log_artifact(str(config_path))
 
-            mlflow.sklearn.log_model(
+            mlflow.xgboost.log_model(
                 model,
                 artifact_path="model",
                 registered_model_name=model_name,
@@ -168,7 +209,7 @@ def main() -> None:
     parser.add_argument("--model-name", type=str, default=MODEL_NAME)
     parser.add_argument("--n-estimators", type=int, default=DEFAULT_PARAMS["n_estimators"])
     parser.add_argument("--max-depth", type=int, default=DEFAULT_PARAMS["max_depth"])
-    parser.add_argument("--min-samples-leaf", type=int, default=DEFAULT_PARAMS["min_samples_leaf"])
+    parser.add_argument("--min-samples-leaf", type=int, default=DEFAULT_PARAMS["min_child_weight"])
     parser.add_argument("--seed", type=int, default=DEFAULT_PARAMS["random_state"])
     args = parser.parse_args()
 

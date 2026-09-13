@@ -1,3 +1,6 @@
+# TODO: high - Add tag mapping version control
+# TODO: medium - Implement store-and-forward buffer health checks
+# TODO: low - Add unmapped tag alerting
 """Data ingestion: pull raw data from a source (CSV file or URL) into data/raw/.
 
 Idempotent: re-running produces the same normalized raw dataset.
@@ -17,27 +20,19 @@ DEFAULT_SOURCE = PROJECT_ROOT / "data" / "external" / "dataset.csv"
 DEFAULT_DESTINATION = PROJECT_ROOT / "data" / "raw" / "dataset.csv"
 
 RAW_COLUMN_TYPES: dict[str, str] = {
-    "CustomerID": "object",
-    "Gender": "object",
-    "SeniorCitizen": "int64",
-    "Partner": "object",
-    "Dependents": "object",
-    "Tenure": "int64",
-    "PhoneService": "object",
-    "MultipleLines": "object",
-    "InternetService": "object",
-    "OnlineSecurity": "object",
-    "OnlineBackup": "object",
-    "DeviceProtection": "object",
-    "TechSupport": "object",
-    "StreamingTV": "object",
-    "StreamingMovies": "object",
-    "Contract": "object",
-    "PaperlessBilling": "object",
-    "PaymentMethod": "object",
-    "MonthlyCharges": "float64",
-    "TotalCharges": "float64",
-    "Churn": "object",
+    "store_id": "int64",
+    "sku_id": "int64",
+    "date": "object",
+    "day_of_week": "int64",
+    "month": "int64",
+    "is_holiday": "int64",
+    "price": "float64",
+    "promotion": "int64",
+    "temperature": "float64",
+    "inventory_level": "int64",
+    "competitor_price": "float64",
+    "store_traffic": "int64",
+    "units_sold": "int64",
 }
 
 
@@ -65,9 +60,14 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def resolve_destination(destination: str | Path | None = None) -> Path:
+    """Resolve the output path the same way :func:`ingest` does."""
+    return Path(destination or os.environ.get("INGESTION_DESTINATION") or DEFAULT_DESTINATION)
+
+
 def ingest(source: str | Path | None = None, destination: str | Path | None = None) -> pd.DataFrame:
     source = source or os.environ.get("INGESTION_SOURCE") or DEFAULT_SOURCE
-    destination = Path(destination or os.environ.get("INGESTION_DESTINATION") or DEFAULT_DESTINATION)
+    destination = resolve_destination(destination)
 
     resolved = Path(source) if not str(source).startswith(("http", "s3")) else source
     if isinstance(resolved, Path) and not resolved.exists():
@@ -86,13 +86,14 @@ def ingest(source: str | Path | None = None, destination: str | Path | None = No
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ingest raw churn data.")
+    parser = argparse.ArgumentParser(description="Ingest the raw demand dataset.")
     parser.add_argument("--source", type=str, default=None, help="CSV path or URL (default: $INGESTION_SOURCE or data/external/dataset.csv)")
     parser.add_argument("--destination", type=str, default=None, help="Output path (default: data/raw/dataset.csv)")
     args = parser.parse_args()
 
     df = ingest(args.source, args.destination)
-    print(f"ingested {len(df)} rows x {len(df.columns)} columns -> data/raw/dataset.csv")
+    destination = resolve_destination(args.destination)
+    print(f"ingested {len(df)} rows x {len(df.columns)} columns -> {destination}")
 
 
 if __name__ == "__main__":

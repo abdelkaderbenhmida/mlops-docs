@@ -1,3 +1,6 @@
+# TODO: high - Add data validation before training
+# TODO: medium - Implement hyperparameter logging
+# TODO: low - Add model explainability integration
 """DAG: full training pipeline.
 
 Runs the complete model lifecycle on the current data snapshot:
@@ -71,8 +74,8 @@ def _build_features() -> str:
 def _train(**context) -> str:
     result = train_model()
     context["task_instance"].xcom_push(key="run_id", value=result["run_id"])
-    context["task_instance"].xcom_push(key="f1", value=result["metrics"]["f1"])
-    return f"training completed run_id={result['run_id']} f1={result['metrics']['f1']:.4f}"
+    context["task_instance"].xcom_push(key="r2", value=result["metrics"]["r2"])
+    return f"training completed run_id={result['run_id']} r2={result['metrics']['r2']:.4f}"
 
 
 def _evaluate(**context) -> str:
@@ -80,7 +83,7 @@ def _evaluate(**context) -> str:
     report = evaluate(run_id=run_id)
     if not report["gates_passed"]:
         raise RuntimeError("evaluation gates not met; stopping before promotion")
-    return f"evaluation passed f1={report['metrics']['f1']:.4f}"
+    return f"evaluation passed r2={report['metrics']['r2']:.4f}"
 
 
 def _promote() -> str:
@@ -89,8 +92,8 @@ def _promote() -> str:
 
 
 def _notify(**context) -> str:
-    f1 = context["task_instance"].xcom_pull(task_ids="train_model", key="f1")
-    send_alert(f"training_pipeline completed | f1={f1:.4f}", severity="info", dag=DAG_ID)
+    r2 = context["task_instance"].xcom_pull(task_ids="train_model", key="r2")
+    send_alert(f"training_pipeline completed | r2={r2:.4f}", severity="info", dag=DAG_ID)
     return "notification sent"
 
 

@@ -1,3 +1,6 @@
+# TODO: high - Add promotion gate with evidence pack requirement
+# TODO: medium - Implement human approval recording
+# TODO: low - Add rollback capability documentation
 """Promotion logic: Staging -> Production in the MLflow Model Registry.
 
 A candidate (the latest evaluation report) is promoted only if:
@@ -21,7 +24,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LATEST_REPORT = PROJECT_ROOT / "models" / "evaluation" / "latest_report.json"
 PRODUCTION_REPORT = PROJECT_ROOT / "models" / "evaluation" / "production_report.json"
 
-MODEL_NAME = os.environ.get("MLFLOW_MODEL_NAME", "churn_model")
+MODEL_NAME = os.environ.get("MLFLOW_MODEL_NAME", "demand_model")
+
+# The model is a regressor: r2 (higher is better) is the comparison metric.
+COMPARISON_METRIC = "r2"
 
 
 def _client():
@@ -63,11 +69,12 @@ def promote_candidate(model_name: str = MODEL_NAME, force: bool = False) -> dict
 
     production = current_production(model_name)
     if production and not force:
-        candidate_f1 = candidate["metrics"]["f1"]
-        production_f1 = production["report"].get("metrics", {}).get("f1")
-        if production_f1 is not None and candidate_f1 < production_f1:
+        candidate_score = candidate["metrics"][COMPARISON_METRIC]
+        production_score = production["report"].get("metrics", {}).get(COMPARISON_METRIC)
+        if production_score is not None and candidate_score < production_score:
             raise RuntimeError(
-                f"Candidate f1={candidate_f1:.4f} < production f1={production_f1:.4f}; refusing to promote "
+                f"Candidate {COMPARISON_METRIC}={candidate_score:.4f} < production "
+                f"{COMPARISON_METRIC}={production_score:.4f}; refusing to promote "
                 "(use --force to override)."
             )
 
@@ -80,7 +87,10 @@ def promote_candidate(model_name: str = MODEL_NAME, force: bool = False) -> dict
     client.update_model_version(
         model_name,
         version.version,
-        description=f"Promoted by promote.py | f1={candidate['metrics']['f1']:.4f} | run={candidate.get('run_id')}",
+        description=(
+            f"Promoted by promote.py | {COMPARISON_METRIC}="
+            f"{candidate['metrics'][COMPARISON_METRIC]:.4f} | run={candidate.get('run_id')}"
+        ),
     )
 
     production_report = {

@@ -4,64 +4,8 @@
   "threshold": 0.3,
   "drift_detected": false,
   "drifted_features": [],
-  "per_column": {
-    "store_id": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "sku_id": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "day_of_week": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "month": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "is_holiday": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "price": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "promotion": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "temperature": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "inventory_level": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "competitor_price": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    },
-    "store_traffic": {
-      "drift_detected": false,
-      "test": "ks_2samp",
-      "score": 0.0
-    }
-  },
-  "reference": "data/monitoring/reference.csv",
-  "current": "data/monitoring/reference.csv",
+  "per_column": {},
+  "reference": "/home/gadour/Desktop/new_project/other/mlops-project-documentation/data/monitoring/reference.csv",
+  "current": "/home/gadour/Desktop/new_project/other/mlops-project-documentation/data/monitoring/current.csv",
   "generated_at": null
 }

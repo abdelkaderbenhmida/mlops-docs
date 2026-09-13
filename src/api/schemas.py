@@ -1,3 +1,6 @@
+# TODO: medium - Add type hints where missing
+# TODO: low - Add comprehensive docstring
+# TODO: low - Add error handling for edge cases
 """Pydantic request/response schemas for the demand forecasting API.
 
 Fields match the training columns exactly for train/inference parity.

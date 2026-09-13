@@ -1,19 +1,45 @@
 # syntax=docker/dockerfile:1
-# Training job image: full Python deps + source code. Data comes from the
+# GPU training image (local). Multi-stage: dependencies are built on a
+# python:3.11 builder, the runtime stage uses the NVIDIA CUDA base image so
+# XGBoost can run with device=cuda / tree_method=gpu_hist. Data comes from the
 # DVC remote / volume mount at runtime, never baked into the image.
 
-FROM python:3.11-slim AS runtime
+FROM python:3.11-slim AS builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+COPY requirements.txt .
+RUN pip install --prefix=/install -r requirements.txt
+
+
+FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04 AS runtime
+
+# Entry-point scripts under /install/bin reference the python:3.11 interpreter;
+# deadsnakes provides python3.11 on the Ubuntu 22.04 CUDA base and the symlink
+# makes those shebangs resolve.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    curl \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    && ln -s /usr/bin/python3.11 /usr/local/bin/python \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
+    PATH="/install/bin:${PATH}" \
     MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000} \
-    MLFLOW_MODEL_NAME=${MLFLOW_MODEL_NAME:-churn_model}
+    MLFLOW_MODEL_NAME=${MLFLOW_MODEL_NAME:-demand_model}
+
+COPY --from=builder /install /install
 
 WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install -r requirements.txt
 
 COPY src ./src
 COPY scripts ./scripts

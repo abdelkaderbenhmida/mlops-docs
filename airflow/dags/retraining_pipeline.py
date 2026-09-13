@@ -1,3 +1,6 @@
+# TODO: high - Add data validation before training
+# TODO: medium - Implement hyperparameter logging
+# TODO: low - Add model explainability integration
 """DAG: retraining triggered by drift detection.
 
 Runs daily. The `check_drift` task short-circuits the pipeline: if no drift
@@ -77,7 +80,7 @@ def _build_features() -> str:
 def _train(**context) -> str:
     result = train_model()
     context["task_instance"].xcom_push(key="run_id", value=result["run_id"])
-    return f"retraining completed run_id={result['run_id']} f1={result['metrics']['f1']:.4f}"
+    return f"retraining completed run_id={result['run_id']} r2={result['metrics']['r2']:.4f}"
 
 
 def _evaluate(**context) -> str:
@@ -85,14 +88,14 @@ def _evaluate(**context) -> str:
     report = evaluate(run_id=run_id)
     if not report["gates_passed"]:
         raise RuntimeError("evaluation gates not met; stopping before promotion")
-    return f"evaluation passed f1={report['metrics']['f1']:.4f}"
+    return f"evaluation passed r2={report['metrics']['r2']:.4f}"
 
 
 def _promote() -> str:
     production = promote_candidate()
     send_alert(
         f"retraining promoted model version {production['version']} to production "
-        f"(f1={production['metrics']['f1']:.4f})",
+        f"(r2={production['metrics']['r2']:.4f})",
         severity="info",
         dag=DAG_ID,
     )

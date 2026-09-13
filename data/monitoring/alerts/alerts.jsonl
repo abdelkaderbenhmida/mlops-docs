@@ -1,1 +1,2 @@
 {"timestamp": 1786815695.3244822, "severity": "warning", "message": "test alert", "extra": {"source": "validation"}}
+{"timestamp": 1787663619.8797445, "severity": "info", "message": "verification probe", "extra": {"dag": "manual"}}

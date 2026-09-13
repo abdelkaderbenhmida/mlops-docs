@@ -2,9 +2,12 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: mlops-staging
 resources:
+  - namespace.yaml
   - ../../base
-commonLabels:
-  environment: staging
+labels:
+  - includeSelectors: false
+    pairs:
+      environment: staging
 images:
   - name: ghcr.io/mlops-project/mlops-api
     newName: ghcr.io/mlops-project/mlops-api

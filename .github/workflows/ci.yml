@@ -72,7 +72,7 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements-dev.txt
       - name: Validate dataset
-        run: python src/data/validation.py --input data/processed/dataset.csv 2>/dev/null || python src/data/validation.py --input data/raw/dataset.csv
+        run: python src/data/validation.py --input data/raw/dataset.csv
 
   unit-tests:
     name: Unit tests (pytest)
@@ -93,7 +93,7 @@ jobs:
           python src/data/preprocessing.py
           python src/features/build_features.py
       - name: Run unit tests
-        run: pytest tests/unit -v --cov=src --cov-report=term-missing --suppress-no-test-exit-code
+        run: pytest tests/unit -v --cov=src --cov-report=term-missing
 
   integration-tests:
     name: Integration tests (pipeline on sample)
@@ -114,10 +114,10 @@ jobs:
           python src/data/ingestion.py
           python src/data/preprocessing.py
           python src/features/build_features.py
-          MLFLOW_TRACKING_URI=file:./mlruns python src/models/train.py
+          MLFLOW_TRACKING_URI=sqlite:///mlruns/mlflow.db python src/models/train.py
           python src/models/evaluate.py
       - name: Run integration tests
-        run: pytest tests/integration -v -m integration --suppress-no-test-exit-code
+        run: pytest tests/integration -v -m integration
 
   docker-build:
     name: Docker build test

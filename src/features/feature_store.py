@@ -1,3 +1,6 @@
+# TODO: medium - Add type hints where missing
+# TODO: low - Add comprehensive docstring
+# TODO: low - Add error handling for edge cases
 """Lightweight Parquet feature store, versioned by DVC.
 
 Each `put_features` writes data/features/features_v{N}.parquet together with a
@@ -19,33 +22,18 @@ DEFAULT_DIR = PROJECT_ROOT / "data" / "features"
 SCHEMA_FILE = "features_store_schema.json"
 
 FEATURE_SCHEMA = {
-    "Tenure": {"type": "float64", "description": "Months the customer has stayed", "expected_range": [0, 120]},
-    "MonthlyCharges": {"type": "float64", "description": "Monthly subscription charge", "expected_range": [0, 1000]},
-    "TotalCharges": {"type": "float64", "description": "Total charges paid to date", "expected_range": [0, 100000]},
-    "charges_per_tenure": {
-        "type": "float64",
-        "description": "TotalCharges / (Tenure + 1)",
-        "expected_range": [0, 1000],
-    },
-    "tenure_years": {"type": "float64", "description": "Tenure expressed in years", "expected_range": [0, 10]},
-    "num_services": {"type": "int64", "description": "Number of subscribed services", "expected_range": [0, 6]},
-    "Gender": {"type": "int64", "description": "Encoded gender (0/1)", "expected_range": [0, 1]},
-    "SeniorCitizen": {"type": "int64", "description": "1 if senior citizen", "expected_range": [0, 1]},
-    "Partner": {"type": "int64", "description": "1 if has partner", "expected_range": [0, 1]},
-    "Dependents": {"type": "int64", "description": "1 if has dependents", "expected_range": [0, 1]},
-    "PhoneService": {"type": "int64", "description": "1 if has phone service", "expected_range": [0, 1]},
-    "MultipleLines": {"type": "int64", "description": "Encoded multiple lines", "expected_range": [-1, 2]},
-    "InternetService": {"type": "int64", "description": "Encoded internet service type", "expected_range": [-1, 2]},
-    "OnlineSecurity": {"type": "int64", "description": "Encoded online security", "expected_range": [-1, 2]},
-    "OnlineBackup": {"type": "int64", "description": "Encoded online backup", "expected_range": [-1, 2]},
-    "DeviceProtection": {"type": "int64", "description": "Encoded device protection", "expected_range": [-1, 2]},
-    "TechSupport": {"type": "int64", "description": "Encoded tech support", "expected_range": [-1, 2]},
-    "StreamingTV": {"type": "int64", "description": "Encoded streaming TV", "expected_range": [-1, 2]},
-    "StreamingMovies": {"type": "int64", "description": "Encoded streaming movies", "expected_range": [-1, 2]},
-    "Contract": {"type": "int64", "description": "Encoded contract type", "expected_range": [-1, 2]},
-    "PaperlessBilling": {"type": "int64", "description": "1 if paperless billing", "expected_range": [0, 1]},
-    "PaymentMethod": {"type": "int64", "description": "Encoded payment method", "expected_range": [-1, 3]},
-    "churn_target": {"type": "int64", "description": "Target: 1 if customer churned", "expected_range": [0, 1]},
+    "store_id": {"type": "int64", "description": "Store identifier", "expected_range": [1, 100]},
+    "sku_id": {"type": "int64", "description": "Product (SKU) identifier", "expected_range": [1, 200]},
+    "day_of_week": {"type": "int64", "description": "Day of week (0=Monday)", "expected_range": [0, 6]},
+    "month": {"type": "int64", "description": "Calendar month", "expected_range": [1, 12]},
+    "is_holiday": {"type": "int64", "description": "1 if the day is a public holiday", "expected_range": [0, 1]},
+    "price": {"type": "float64", "description": "Selling price", "expected_range": [0, 500]},
+    "promotion": {"type": "int64", "description": "1 if the product is on promotion", "expected_range": [0, 1]},
+    "temperature": {"type": "float64", "description": "Outside temperature (C)", "expected_range": [-50, 150]},
+    "inventory_level": {"type": "int64", "description": "Stock on hand", "expected_range": [0, 10000]},
+    "competitor_price": {"type": "float64", "description": "Competitor selling price", "expected_range": [0, 500]},
+    "store_traffic": {"type": "int64", "description": "Store footfall for the day", "expected_range": [0, 50000]},
+    "units_sold": {"type": "int64", "description": "Target: units sold", "expected_range": [0, 100000]},
 }
 
 

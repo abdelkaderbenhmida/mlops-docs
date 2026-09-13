@@ -1,3 +1,6 @@
+# TODO: medium - Add type hints where missing
+# TODO: low - Add comprehensive docstring
+# TODO: low - Add error handling for edge cases
 """Tests for src.data.preprocessing module (demand forecasting)."""
 
 import pandas as pd

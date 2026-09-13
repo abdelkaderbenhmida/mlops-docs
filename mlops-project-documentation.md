@@ -172,7 +172,20 @@ Le rapport d'évaluation est écrit dans `models/evaluation/latest_report.json` 
 ## 3. Architecture globale
 
 ### 3.1 Schéma du flux de données et de contrôle
-
+```mermaid
+flowchart TD
+    raw_data[/Données brutes (data/external/dataset.csv)/] -->|DVC stage: ingest| ingest[DVC stage: ingest]
+    ingest -->|preprocessing| preprocess[DVC stage: preprocess]
+    preprocess -->|Great Expectations validation| ge[Great Expectations validation]
+    ge -->|build features| features[DVC stage: build_features]
+    features -->|train| train[Entraînement]
+    train -->|evaluate| evaluate[Évaluation]
+    evaluate -->|promotion| promote[Promotion]
+    promote -->|service| api[Service d'inférence FastAPI]
+    api -->|monitoring| monitoring[Monitoring infrastructure]
+    monitoring -->|drift detection| drift[Détection de drift KS]
+    drift -->|retraining pipeline| airflow[Airflow: retraining_pipeline]
+    airflow -->|new model| registry[Model Registry]
 ```
         Données brutes (data/external/dataset.csv)
                         │

@@ -62,23 +62,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-kubectl@v4
+      - uses: imranismail/setup-kustomize@v2
       - name: Set kubeconfig
         run: |
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG_STAGING }}" > $HOME/.kube/config
       - name: Update image tag via Kustomize
-        run: |
-          kustomize edit set image ghcr.io/mlops-project/mlops-api=${{ needs.build-and-push.outputs.image_tag }}
-          kustomize build k8s/overlays/staging | kubectl apply -f -
+        working-directory: k8s/overlays/staging
+        run: kustomize edit set image ghcr.io/mlops-project/mlops-api=${{ needs.build-and-push.outputs.image_tag }}
+      - name: Apply manifests
+        run: kustomize build k8s/overlays/staging | kubectl apply -f -
       - name: Wait for rollout
-        run: kubectl rollout status deployment/mlops-api --namespace=mlops --timeout=300s
+        run: kubectl rollout status deployment/mlops-api --namespace=mlops-staging --timeout=300s
       - name: Smoke tests
         run: |
           ENDPOINT=${{ secrets.STAGING_API_URL }}
           curl --fail --retry 10 --retry-delay 5 "$ENDPOINT/health"
           curl --fail -s -X POST "$ENDPOINT/predict" \
             -H "Content-Type: application/json" \
-            -d '{"Gender":"Male","SeniorCitizen":0,"Partner":"No","Dependents":"No","Tenure":12,"PhoneService":"Yes","MultipleLines":"No","InternetService":"DSL","OnlineSecurity":"No","OnlineBackup":"Yes","DeviceProtection":"No","TechSupport":"No","StreamingTV":"No","StreamingMovies":"No","Contract":"Month-to-month","PaperlessBilling":"Yes","PaymentMethod":"Electronic check","MonthlyCharges":65.5,"TotalCharges":786.0}'
+            -d '{"store_id":1,"sku_id":1,"day_of_week":2,"month":6,"is_holiday":0,"price":19.99,"promotion":0,"temperature":21.5,"inventory_level":500,"competitor_price":21.5,"store_traffic":1200}'
 
   deploy-production:
     name: Deploy production (manual approval)
@@ -88,18 +90,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-kubectl@v4
+      - uses: imranismail/setup-kustomize@v2
       - name: Set kubeconfig
         run: |
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG_PRODUCTION }}" > $HOME/.kube/config
       - name: Update image tag via Kustomize
-        run: |
-          kustomize edit set image ghcr.io/mlops-project/mlops-api=${{ needs.build-and-push.outputs.image_tag }}
-          kustomize build k8s/overlays/production | kubectl apply -f -
+        working-directory: k8s/overlays/production
+        run: kustomize edit set image ghcr.io/mlops-project/mlops-api=${{ needs.build-and-push.outputs.image_tag }}
+      - name: Apply manifests
+        run: kustomize build k8s/overlays/production | kubectl apply -f -
       - name: Rolling update with zero downtime
         run: |
-          kubectl rollout status deployment/mlops-api --namespace=mlops --timeout=300s
+          kubectl rollout status deployment/mlops-api --namespace=mlops-production --timeout=300s
       - name: Verify rollout health
         run: |
-          kubectl get pods --namespace=mlops -l app=mlops-api
-          kubectl get hpa --namespace=mlops
+          kubectl get pods --namespace=mlops-production -l app=mlops-api
+          kubectl get hpa --namespace=mlops-production

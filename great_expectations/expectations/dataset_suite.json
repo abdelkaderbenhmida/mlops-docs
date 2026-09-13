@@ -1,80 +1,194 @@
 {
   "expectation_suite_name": "dataset_suite",
-  "data_asset_type": "Dataset",
   "meta": {
-    "generator": "mlops-project",
-    "created_by": "backend-agent",
-    "dataset": "telco churn",
-    "stage": "validated-before-training"
+    "description": "Input data contract for the retail demand dataset (see spec section 2.1). Enforced by src/data/validation.py and the data-validation CI job.",
+    "target": "units_sold"
   },
   "expectations": [
     {
       "expectation_type": "expect_table_row_count_to_be_between",
-      "kwargs": { "min_value": 1000, "max_value": 5000000 }
+      "kwargs": {
+        "min_value": 1000,
+        "max_value": 200000
+      }
     },
     {
       "expectation_type": "expect_column_values_to_not_be_null",
-      "kwargs": { "column": "Tenure" }
+      "kwargs": {
+        "column": "store_id"
+      }
     },
     {
       "expectation_type": "expect_column_values_to_not_be_null",
-      "kwargs": { "column": "MonthlyCharges" }
+      "kwargs": {
+        "column": "sku_id"
+      }
     },
     {
       "expectation_type": "expect_column_values_to_not_be_null",
-      "kwargs": { "column": "TotalCharges" }
+      "kwargs": {
+        "column": "date"
+      }
     },
     {
       "expectation_type": "expect_column_values_to_not_be_null",
-      "kwargs": { "column": "Churn" }
+      "kwargs": {
+        "column": "day_of_week"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "month"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "is_holiday"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "price"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "promotion"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "temperature"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "inventory_level"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "competitor_price"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "store_traffic"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "units_sold"
+      }
     },
     {
       "expectation_type": "expect_column_values_to_be_between",
-      "kwargs": { "column": "Tenure", "min_value": 0, "max_value": 120 }
+      "kwargs": {
+        "column": "store_id",
+        "min_value": 1,
+        "max_value": 100
+      }
     },
     {
       "expectation_type": "expect_column_values_to_be_between",
-      "kwargs": { "column": "MonthlyCharges", "min_value": 0, "max_value": 1000 }
+      "kwargs": {
+        "column": "sku_id",
+        "min_value": 1,
+        "max_value": 200
+      }
     },
     {
       "expectation_type": "expect_column_values_to_be_between",
-      "kwargs": { "column": "TotalCharges", "min_value": 0, "max_value": 100000 }
+      "kwargs": {
+        "column": "day_of_week",
+        "min_value": 0,
+        "max_value": 6
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "month",
+        "min_value": 1,
+        "max_value": 12
+      }
     },
     {
       "expectation_type": "expect_column_values_to_be_in_set",
-      "kwargs": { "column": "Gender", "value_set": ["Male", "Female"] }
+      "kwargs": {
+        "column": "is_holiday",
+        "value_set": [
+          0,
+          1
+        ]
+      }
     },
     {
       "expectation_type": "expect_column_values_to_be_in_set",
-      "kwargs": { "column": "SeniorCitizen", "value_set": [0, 1] }
+      "kwargs": {
+        "column": "promotion",
+        "value_set": [
+          0,
+          1
+        ]
+      }
     },
     {
-      "expectation_type": "expect_column_values_to_be_in_set",
-      "kwargs": { "column": "Contract", "value_set": ["Month-to-month", "One year", "Two year"] }
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "price",
+        "min_value": 0.0,
+        "max_value": 500.0
+      }
     },
     {
-      "expectation_type": "expect_column_values_to_be_in_set",
-      "kwargs": { "column": "InternetService", "value_set": ["DSL", "Fiber optic", "No"] }
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "competitor_price",
+        "min_value": 0.0,
+        "max_value": 500.0
+      }
     },
     {
-      "expectation_type": "expect_column_values_to_be_in_set",
-      "kwargs": { "column": "PaymentMethod", "value_set": ["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"] }
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "temperature",
+        "min_value": -50.0,
+        "max_value": 150.0
+      }
     },
     {
-      "expectation_type": "expect_column_values_to_be_in_set",
-      "kwargs": { "column": "Churn", "value_set": ["Yes", "No"] }
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "inventory_level",
+        "min_value": 0,
+        "max_value": 10000
+      }
     },
     {
-      "expectation_type": "expect_column_values_to_be_of_type",
-      "kwargs": { "column": "Tenure", "type_": "int64" }
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "store_traffic",
+        "min_value": 0,
+        "max_value": 50000
+      }
     },
     {
-      "expectation_type": "expect_column_values_to_be_of_type",
-      "kwargs": { "column": "MonthlyCharges", "type_": "float64" }
-    },
-    {
-      "expectation_type": "expect_column_values_to_not_match_regex",
-      "kwargs": { "column": "Gender", "regex": "[0-9]" }
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "units_sold",
+        "min_value": 0,
+        "max_value": 100000
+      }
     }
   ]
 }

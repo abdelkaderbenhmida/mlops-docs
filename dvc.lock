@@ -1,57 +1,78 @@
 schema: '2.0'
 stages:
   ingest:
-    cmd: python src/data/ingestion.py
+    cmd: python3 src/data/ingestion.py
+    deps:
+    - path: data/external/dataset.csv
+      hash: md5
+      md5: 371522628a41033519cadcb94a18af3b
+      size: 2679423
+    - path: src/data/ingestion.py
+      hash: md5
+      md5: e94cb7f1afe8069ccb9c4d15ee8d903c
+      size: 3442
     outs:
     - path: data/raw/dataset.csv
       hash: md5
-      md5: d5823327c87fe0894259d8a55d1ec4cd
-      size: 1079733
+      md5: 371522628a41033519cadcb94a18af3b
+      size: 2679423
   preprocess:
-    cmd: python src/data/preprocessing.py
+    cmd: python3 src/data/preprocessing.py
     deps:
     - path: data/raw/dataset.csv
       hash: md5
-      md5: d5823327c87fe0894259d8a55d1ec4cd
-      size: 1079733
-    outs:
-    - path: data/processed/dataset.csv
+      md5: 371522628a41033519cadcb94a18af3b
+      size: 2679423
+    - path: src/data/preprocessing.py
       hash: md5
-      md5: 7aaf6c869bc099e14876017eff60e65f
-      size: 1002722
+      md5: 5450fd0b56331ac5e76aef0ab16e4f99
+      size: 2113
+    outs:
+    - path: data/processed/demand_data.csv
+      hash: md5
+      md5: 371522628a41033519cadcb94a18af3b
+      size: 2679423
   build_features:
-    cmd: python src/features/build_features.py
+    cmd: python3 src/features/build_features.py
     deps:
-    - path: data/processed/dataset.csv
+    - path: data/processed/demand_data.csv
       hash: md5
-      md5: 7aaf6c869bc099e14876017eff60e65f
-      size: 1002722
+      md5: 371522628a41033519cadcb94a18af3b
+      size: 2679423
+    - path: src/features/build_features.py
+      hash: md5
+      md5: 6b2776ef0140dc77af3d0b43c3cf1fb7
+      size: 3792
     outs:
     - path: data/features/features.parquet
       hash: md5
-      md5: 3da9e147497a08f14f078234614fb280
-      size: 200106
+      md5: 1a68c1650eb3963781478662c9cd2589
+      size: 702500
     - path: data/features/features_config.json
       hash: md5
-      md5: e6391271362890bc57d0f039b18fae16
-      size: 2555
+      md5: 77e28d653bdafa42392ede70b4a08522
+      size: 1385
   train:
-    cmd: python src/models/train.py
+    cmd: python3 src/models/train.py
     deps:
     - path: data/features/features.parquet
       hash: md5
-      md5: 3da9e147497a08f14f078234614fb280
-      size: 200106
+      md5: 1a68c1650eb3963781478662c9cd2589
+      size: 702500
     - path: data/features/features_config.json
       hash: md5
-      md5: e6391271362890bc57d0f039b18fae16
-      size: 2555
+      md5: 77e28d653bdafa42392ede70b4a08522
+      size: 1385
+    - path: src/models/train.py
+      hash: md5
+      md5: 0872978afcbf832aa2f8f0dbebabc39a
+      size: 7505
     outs:
     - path: metrics.json
       hash: md5
-      md5: c34fc277bf2491151ba3e7e174ac28ec
-      size: 208
+      md5: dce9a708872c07491beaebe91982878c
+      size: 163
     - path: models/model.pkl
       hash: md5
-      md5: 0ddb78a46cb77f8045dd2e205874c3c3
-      size: 28218121
+      md5: cd00787aaf25f6a877258ab5b7ccae91
+      size: 82077841

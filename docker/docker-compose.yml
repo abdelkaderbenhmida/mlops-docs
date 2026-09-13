@@ -21,7 +21,7 @@ x-airflow-env: &airflow-env
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/mlflow
   AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
   MLFLOW_TRACKING_URI: http://mlflow:5000
-  MLFLOW_MODEL_NAME: ${MLFLOW_MODEL_NAME:-churn_model}
+  MLFLOW_MODEL_NAME: ${MLFLOW_MODEL_NAME:-demand_model}
   MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
   MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
   AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
@@ -98,7 +98,37 @@ services:
       - "5000:5000"
     volumes:
       - ../mlflow:/mlflow
-    command: mlflow server --host 0.0.0.0 --port 5000
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri postgresql+psycopg2://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/mlflow
+      --default-artifact-root s3://${MINIO_BUCKET:-mlops-bucket}/mlflow-artifacts
+      --artifacts-destination s3://${MINIO_BUCKET:-mlops-bucket}/mlflow-artifacts
+      --allowed-hosts '*'
+    networks: [mlops]
+
+  train:
+    profiles: ["train"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.training
+    image: mlops-training:local
+    container_name: mlops-train
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_MODEL_NAME: ${MLFLOW_MODEL_NAME:-demand_model}
+    volumes:
+      - ../data:/app/data:ro
+      - ../models:/app/models
+    depends_on:
+      mlflow:
+        condition: service_started
     networks: [mlops]
 
   airflow:
@@ -137,12 +167,19 @@ services:
       dockerfile: docker/Dockerfile.api
     image: mlops-api:local
     container_name: mlops-api
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       mlflow:
         condition: service_started
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
-      MLFLOW_MODEL_NAME: ${MLFLOW_MODEL_NAME:-churn_model}
+      MLFLOW_MODEL_NAME: ${MLFLOW_MODEL_NAME:-demand_model}
       RELOAD_INTERVAL: ${RELOAD_INTERVAL:-60}
     ports:
       - "8000:8000"

@@ -1,3 +1,6 @@
+# TODO: high - Add tag mapping version control
+# TODO: medium - Implement store-and-forward buffer health checks
+# TODO: low - Add unmapped tag alerting
 """DAG: periodic data ingestion.
 
 Scheduled every night: pulls the latest raw data, validates it with the

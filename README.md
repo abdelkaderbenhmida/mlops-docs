@@ -46,11 +46,20 @@ Le projet démontre une boucle MLOps fermée et automatisée pour la prévision 
 
 ## Architecture
 
-```
- Données brutes → DVC ingest → preprocess → validation GE → build_features
-      → train (MLflow + registry) → evaluate (portes R²/MAPE) → promote
-      → API FastAPI (/predict) → monitoring (Prometheus + drift KS)
-      → drift détecté ? → Airflow retraining → evaluate → promote si meilleur
+```mermaid
+flowchart TD
+    raw_data[/Données brutes/] -->|DVC stage: ingest| ingest[Ingestion]
+    ingest -->|preprocessing| preprocess[Prétraitement]
+    preprocess -->|Great Expectations validation| ge[Validation GE]
+    ge -->|build features| features[Feature engineering]
+    features -->|train| train[Entraînement]
+    train -->|evaluate| evaluate[Évaluation]
+    evaluate -->|promotion| promote[Promotion]
+    promote -->|service| api[Service FastAPI]
+    api -->|monitoring| monitoring[Monitoring]
+    monitoring -->|drift detection| drift[Drift détecté]
+    drift -->|retraining pipeline| airflow[Airflow retraining]
+    airflow -->|new model| registry[Model Registry]
 ```
 
 Voir [`docs/architecture.md`](docs/architecture.md) pour le schéma complet et le rôle de chaque composant.

@@ -1,3 +1,6 @@
+# TODO: high - Add quality gate with thresholds
+# TODO: medium - Implement comparison vs current production model
+# TODO: low - Add metrics export for Evidence Pack
 """Model evaluation and validation gates for demand forecasting.
 
 Loads a candidate model, evaluates it on the held-out test set and compares
@@ -9,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -22,7 +24,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from src.features.build_features import TARGET_FEATURE, FEATURE_ORDER
+from src.features.build_features import FEATURE_ORDER, TARGET_FEATURE
 
 DEFAULT_DATA = PROJECT_ROOT / "data" / "features" / "features.parquet"
 DEFAULT_LOCAL_MODEL = PROJECT_ROOT / "models" / "model.pkl"
@@ -35,14 +37,16 @@ DEFAULT_THRESHOLDS = {"min_r2": 0.60, "max_mape": 25.0}
 def _resolve_model(model_uri: str | None, run_id: str | None):
     if run_id:
         try:
-            import mlflow
-            return mlflow.sklearn.load_model(f"runs:/{run_id}/model")
+            import mlflow.xgboost
+
+            return mlflow.xgboost.load_model(f"runs:/{run_id}/model")
         except Exception:  # nosec B110
             pass
     if model_uri:
         try:
-            import mlflow
-            return mlflow.sklearn.load_model(model_uri)
+            import mlflow.xgboost
+
+            return mlflow.xgboost.load_model(model_uri)
         except Exception:  # nosec B110
             pass
     if Path(DEFAULT_LOCAL_MODEL).exists():

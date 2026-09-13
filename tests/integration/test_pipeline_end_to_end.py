@@ -1,3 +1,6 @@
+# TODO: medium - Add type hints where missing
+# TODO: low - Add comprehensive docstring
+# TODO: low - Add error handling for edge cases
 """End-to-end integration test for the demand forecasting MLOps pipeline.
 
 Tests the full pipeline: generate data -> preprocess -> features -> training -> evaluation
@@ -14,7 +17,7 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -24,6 +27,7 @@ from src.models.train import train_model
 from src.models.evaluate import evaluate
 
 
+@pytest.mark.integration
 class TestPipelineEndToEnd:
     """End-to-end pipeline test with minimal data and fast model."""
 

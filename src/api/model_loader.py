@@ -1,3 +1,6 @@
+# TODO: medium - Add type hints where missing
+# TODO: low - Add comprehensive docstring
+# TODO: low - Add error handling for edge cases
 """Model loading for the demand forecasting inference API.
 
 Loads the production model once at startup from the MLflow Model Registry
@@ -19,6 +22,8 @@ import pandas as pd
 from src.features.build_features import FeatureTransformer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+DEFAULT_TRACKING_URI = f"sqlite:///{PROJECT_ROOT / 'mlruns' / 'mlflow.db'}"
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "data" / "features" / "features_config.json"
 DEFAULT_LOCAL_MODEL = PROJECT_ROOT / "models" / "model.pkl"
 
@@ -72,19 +77,21 @@ class ModelLoader:
         explicit_uri = os.environ.get("MLFLOW_MODEL_URI")
         if explicit_uri:
             try:
-                import mlflow
-                mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "file:///tmp/p4mlruns"))
-                model = mlflow.sklearn.load_model(explicit_uri)
+                import mlflow.xgboost
+
+                mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", DEFAULT_TRACKING_URI))
+                model = mlflow.xgboost.load_model(explicit_uri)
                 return ModelBundle(model, transformer, self.model_name, explicit_uri, None), explicit_uri, None
             except Exception:  # noqa: BLE001
                 pass
 
         registry_uri = f"models:/{self.model_name}/Production"
         try:
-            import mlflow
-            mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "file:///tmp/p4mlruns"))
+            import mlflow.xgboost
+
+            mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", DEFAULT_TRACKING_URI))
             client = mlflow.tracking.MlflowClient()
-            model = mlflow.sklearn.load_model(registry_uri)
+            model = mlflow.xgboost.load_model(registry_uri)
             version = client.get_latest_versions(self.model_name, stages=["Production"])[0]
             return (
                 ModelBundle(model, transformer, self.model_name, str(version.version), version.run_id),

@@ -1,3 +1,6 @@
+# TODO: high - Add alert rule for ingestion stalls
+# TODO: medium - Implement dashboard for drift detection
+# TODO: low - Add prediction distribution monitoring
 """Model and data drift detection for demand forecasting.
 
 Compares current production data against training reference snapshot:

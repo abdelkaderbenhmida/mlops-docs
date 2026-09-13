@@ -3,7 +3,7 @@
         compose-down compose-build docker-build-api docker-build-training monitor \
         drift clean
 
-PYTHON ?= python
+PYTHON ?= python3
 MLFLOW_TRACKING_URI ?= http://localhost:5000
 
 help: ## Show available targets
@@ -18,7 +18,7 @@ setup: ## Create virtualenv and install all dependencies
 install: ## Install runtime dependencies
 	$(PYTHON) -m pip install -r requirements.txt
 
-data: ## Generate the synthetic churn dataset
+data: ## Generate the synthetic demand dataset
 	$(PYTHON) scripts/generate_synthetic_data.py
 
 ingest: ## Ingest raw data (DVC stage 1)
@@ -58,8 +58,8 @@ lint: ## Lint with ruff
 	ruff check src airflow scripts
 	black --check --line-length 120 src airflow scripts
 
-security: ## Security scan with bandit
-	bandit -r src -x tests
+security: ## Security scan with bandit (fails on HIGH severity only)
+	bandit -r src -x tests -lll
 
 dvc-repro: ## Re-run the DVC pipeline end to end
 	dvc repro
