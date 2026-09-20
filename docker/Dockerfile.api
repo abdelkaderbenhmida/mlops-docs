@@ -12,6 +12,10 @@ WORKDIR /build
 
 COPY requirements.txt .
 RUN pip install --prefix=/install -r requirements.txt
+# packaging is pre-installed in python:3.11-slim so the requirements install
+# skips it, but the CUDA runtime stage lacks it (and mlflow needs it to import
+# its protos). Force it into the /install prefix explicitly.
+RUN pip install --no-cache-dir --prefix=/install --ignore-installed packaging
 
 
 FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04 AS runtime
