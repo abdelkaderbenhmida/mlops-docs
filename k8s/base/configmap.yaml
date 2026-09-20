@@ -5,7 +5,7 @@ metadata:
   labels:
     app: mlops-api
 data:
-  MLFLOW_TRACKING_URI: "http://mlflow.mlops.svc.cluster.local:5000"
+  MLFLOW_TRACKING_URI: "http://host.docker.internal:5000"
   MLFLOW_MODEL_NAME: "demand_model"
   RELOAD_INTERVAL: "60"
   LOG_LEVEL: "info"

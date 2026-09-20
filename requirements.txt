@@ -29,3 +29,5 @@ great_expectations>=0.18,<1
 
 # Data versioning
 dvc[s3]>=3.30,<4
+boto3
+packaging

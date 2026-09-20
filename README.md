@@ -1,7 +1,16 @@
-# MLOps — Plateforme de Prévision de la Demande
+# Demande — MLOps Plateforme de Prévision de la Demande
 
-> Infrastructure MLOps complète et reproductible pour la **prévision de la demande en distribution de détail** : **DVC/MinIO + Great Expectations + MLflow + Apache Airflow + FastAPI + Docker + GitHub Actions + Kubernetes + Prometheus/Grafana + pytest**.
->
+> **Prévision de la demande en distribution de détail — boucle MLOps fermée et automatisée.**
+
+![Python](https://img.shields.io/badge/Python-3.11%7C3.12-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Stack](https://img.shields.io/badge/stack-Airflow%2BMLflow%2BDVC-blueviolet.svg)
+![CI](https://img.shields.io/badge/CI-GitHubActions-orange.svg)
+
+**Demande** est la plateforme MLOps de référence pour la prévision des ventes :
+ingestion, validation, entraînement, service d'inférence, monitoring de drift et
+réentraînement automatique.
+
 > Modèle : **RandomForestRegressor** prédisant les **unités vendues (`units_sold`)** par magasin (`store_id`) et par SKU (`sku_id`), avec évaluation par portes de qualité (**R² ≥ 0,60 ; MAPE ≤ 25 %**), monitoring de drift (test de Kolmogorov-Smirnov) et boucle de réentraînement automatique déclenchée par drift.
 
 Cette plateforme illustre le cycle de vie complet d'un système MLOps de prévision de la demande, de l'ingestion des données jusqu'à la détection de drift en production et au réentraînement automatique. Le dépôt démontre l'architecture sur un **jeu de données synthétique de démonstration** (voir [Risques honnêtes](#risques-honnêtes)).

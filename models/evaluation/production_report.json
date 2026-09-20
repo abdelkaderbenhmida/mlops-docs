@@ -1,14 +1,13 @@
 {
-  "model_name": "churn_model",
+  "model_name": "demand_model",
   "version": 1,
-  "run_id": "f213a19e92c5486f83b4f65aab4534f5",
+  "run_id": "28693c1c686342e592d91ed5eb23abd3",
   "promoted_at": null,
   "metrics": {
-    "f1": 0.4474885844748858,
-    "accuracy": 0.7407142857142858,
-    "precision": 0.40273972602739727,
-    "recall": 0.5034246575342466,
-    "roc_auc": 0.7546362692250631,
-    "n_samples": 1400
+    "rmse": 6.2546730092963445,
+    "mae": 4.802518210792542,
+    "r2": 0.8414201385514648,
+    "mape": 10.62961349692289,
+    "n_samples": 10000
   }
 }

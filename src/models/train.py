@@ -185,6 +185,19 @@ def train_model(
                 registered_model_name=model_name,
                 input_example=X_test.iloc[[0]],
             )
+            # Move the freshly registered version to Staging so the promotion
+            # gate (Staging -> Production) can find it.
+            from mlflow.tracking import MlflowClient
+
+            client = MlflowClient()
+            versions = client.get_latest_versions(model_name, stages=["None"])
+            if versions:
+                client.transition_model_version_stage(
+                    name=model_name,
+                    version=versions[0].version,
+                    stage="Staging",
+                )
+                print(f"registered {model_name} v{versions[0].version} -> Staging")
     except Exception as exc:  # noqa: BLE001
         print(f"warning: MLflow tracking failed (continuing offline): {exc}")
 

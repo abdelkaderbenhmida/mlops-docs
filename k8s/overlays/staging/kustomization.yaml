@@ -9,8 +9,8 @@ labels:
     pairs:
       environment: staging
 images:
-  - name: ghcr.io/mlops-project/mlops-api
-    newName: ghcr.io/mlops-project/mlops-api
+  - name: mlops-api
+    newName: mlops-api
     newTag: staging
 patches:
   - path: deployment-patch.yaml

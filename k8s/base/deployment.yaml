@@ -21,8 +21,8 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/mlops-project/mlops-api:latest
-          imagePullPolicy: IfNotPresent
+          image: mlops-api:local
+          imagePullPolicy: Never
           ports:
             - name: http
               containerPort: 8000

@@ -1,0 +1,12 @@
+# CPU override for machines without the NVIDIA container toolkit.
+# Usage:
+#   docker compose -f docker/docker-compose.yml -f docker/compose.cpu.yml up -d
+# The GPU reservation in the main compose fails with
+# 'could not select device driver "nvidia"' when the toolkit is absent;
+# !override replaces the reservations list (XGBoost falls back to CPU inference).
+services:
+  api:
+    deploy:
+      resources:
+        reservations: !override
+          devices: []

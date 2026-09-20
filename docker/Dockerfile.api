@@ -16,6 +16,10 @@ RUN pip install --prefix=/install -r requirements.txt
 
 FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04 AS runtime
 
+# Non-interactive apt: tzdata (via software-properties-common) otherwise
+# prompts for a timezone and hangs the build forever.
+ARG DEBIAN_FRONTEND=noninteractive
+
 # Entry-point scripts under /install/bin reference the python:3.11 interpreter;
 # deadsnakes provides python3.11 on the Ubuntu 22.04 CUDA base and the symlink
 # makes those shebangs resolve.
@@ -28,11 +32,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
     python3.11-venv \
     && ln -s /usr/bin/python3.11 /usr/local/bin/python \
+    && ln -s /usr/bin/python3.11 /usr/local/bin/python3.11 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/install/bin:${PATH}" \
+    PYTHONPATH="/install/lib/python3.11/site-packages" \
     MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000} \
     MLFLOW_MODEL_NAME=${MLFLOW_MODEL_NAME:-demand_model}
 
